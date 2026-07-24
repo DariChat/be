@@ -36,6 +36,11 @@
     }
 
     function enterRoom() {
+        if (roomSubscription) {
+            roomSubscription.unsubscribe();
+            roomSubscription = null;
+        }
+
         const roomId = document.getElementById('roomId').value;
         roomSubscription = stompClient.subscribe('/sub/rooms/' + roomId, function (message) {
             log('받은 메시지: ' + message.body);
