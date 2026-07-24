@@ -86,11 +86,12 @@ public class RoomService {
 
     @Transactional
     public void markAsRead(Long userId, Long roomId) {
-        RoomMember roomMember = roomMemberRepository.findByUserIdAndRoomId(userId, roomId)
-                .orElseThrow(() -> new IllegalArgumentException("해당 방의 회원이 아닙니다."));
+        if (!roomMemberRepository.existsByUserIdAndRoomId(userId, roomId)) {
+            throw new IllegalArgumentException("해당 방의 회원이 아닙니다.");
+        }
 
         messageRepository.findLatestMessageIdByRoomId(roomId)
-                .ifPresent(roomMember::updateLastReadMessageId);
+                .ifPresent(messageId -> roomMemberRepository.updateLastReadMessageIdIfGreater(userId, roomId, messageId));
     }
 
     @Transactional
@@ -98,8 +99,7 @@ public class RoomService {
         if (userIds.isEmpty()) {
             return;
         }
-        roomMemberRepository.findByUserIdInAndRoomId(userIds, roomId)
-                .forEach(roomMember -> roomMember.updateLastReadMessageId(messageId));
+        roomMemberRepository.updateLastReadMessageIdIfGreater(userIds, roomId, messageId);
     }
 
     @Transactional

@@ -2,6 +2,7 @@ package com.talkie.chat.room.repository;
 
 import com.talkie.chat.room.entity.RoomMember;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -26,6 +27,15 @@ public interface RoomMemberRepository extends JpaRepository<RoomMember, Long> {
     @Query("SELECT rm FROM RoomMember rm WHERE rm.room.id = :roomId AND rm.role = 'MEMBER' ORDER BY rm.joinedAt ASC LIMIT 1")
     Optional<RoomMember> findOldestMemberByRoomId(@Param("roomId") Long roomId);
 
-    @Query("SELECT rm FROM RoomMember rm WHERE rm.user.id IN :userIds AND rm.room.id = :roomId")
-    List<RoomMember> findByUserIdInAndRoomId(@Param("userIds") Set<Long> userIds, @Param("roomId") Long roomId);
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE RoomMember rm SET rm.lastReadMessageId = :messageId " +
+            "WHERE rm.user.id = :userId AND rm.room.id = :roomId " +
+            "AND (rm.lastReadMessageId IS NULL OR rm.lastReadMessageId < :messageId)")
+    int updateLastReadMessageIdIfGreater(@Param("userId") Long userId, @Param("roomId") Long roomId, @Param("messageId") Long messageId);
+
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE RoomMember rm SET rm.lastReadMessageId = :messageId " +
+            "WHERE rm.user.id IN :userIds AND rm.room.id = :roomId " +
+            "AND (rm.lastReadMessageId IS NULL OR rm.lastReadMessageId < :messageId)")
+    int updateLastReadMessageIdIfGreater(@Param("userIds") Set<Long> userIds, @Param("roomId") Long roomId, @Param("messageId") Long messageId);
 }
