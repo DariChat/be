@@ -18,12 +18,13 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/ws-talkie").withSockJS();
+        registry.addEndpoint("/ws-talkie")
+                .setAllowedOrigins("*");
     }
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        registry.enableSimpleBroker("/topic", "/queue");
-        registry.setApplicationDestinationPrefixes("/app");
+        registry.enableSimpleBroker("/sub", "/queue");
+        registry.setApplicationDestinationPrefixes("/pub");
     }
 
     @Override

@@ -20,7 +20,7 @@ public class RedisSubscriber implements MessageListener {
         try {
             ChatMessage chatMessage = objectMapper.readValue(message.getBody(), ChatMessage.class);
             Long roomId = chatMessage.roomId();
-            messagingTemplate.convertAndSend("/topic/rooms/" + roomId, chatMessage.message());
+            messagingTemplate.convertAndSend("/sub/rooms/" + roomId, chatMessage.message());
         } catch (Exception e) {
             throw new IllegalArgumentException("유효하지 않은 메시지입니다.", e);
         }
