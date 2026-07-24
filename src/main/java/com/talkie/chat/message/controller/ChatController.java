@@ -38,9 +38,6 @@ public class ChatController {
         Long userId = Long.parseLong(principal.getName());
         MessageResponse messageResponse = messageService.saveMessage(userId, roomId, request.content());
 
-        Set<Long> subscriberIds = roomSubscriptionListener.getSubscriberIds(roomId);
-        roomService.markAsRead(subscriberIds, roomId, messageResponse.id());
-
         ChatMessage chatMessage = new ChatMessage(roomId, messageResponse);
 
         String json;
@@ -56,6 +53,8 @@ public class ChatController {
         } catch (Exception e) {
             throw new IllegalArgumentException("메시지 발행 실패", e);
         }
+        Set<Long> subscriberIds = roomSubscriptionListener.getSubscriberIds(roomId);
+        roomService.markAsRead(subscriberIds, roomId, messageResponse.id());
     }
 
     @MessageExceptionHandler(IllegalArgumentException.class)
