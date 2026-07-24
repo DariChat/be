@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public interface RoomMemberRepository extends JpaRepository<RoomMember, Long> {
     @Query("SELECT rm.room.id, rm.room.roomName, " +
@@ -24,4 +25,7 @@ public interface RoomMemberRepository extends JpaRepository<RoomMember, Long> {
 
     @Query("SELECT rm FROM RoomMember rm WHERE rm.room.id = :roomId AND rm.role = 'MEMBER' ORDER BY rm.joinedAt ASC LIMIT 1")
     Optional<RoomMember> findOldestMemberByRoomId(@Param("roomId") Long roomId);
+
+    @Query("SELECT rm FROM RoomMember rm WHERE rm.user.id IN :userIds AND rm.room.id = :roomId")
+    List<RoomMember> findByUserIdInAndRoomId(@Param("userIds") Set<Long> userIds, @Param("roomId") Long roomId);
 }

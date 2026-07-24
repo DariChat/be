@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -90,6 +91,15 @@ public class RoomService {
 
         messageRepository.findLatestMessageIdByRoomId(roomId)
                 .ifPresent(roomMember::updateLastReadMessageId);
+    }
+
+    @Transactional
+    public void markAsRead(Set<Long> userIds, Long roomId, Long messageId) {
+        if (userIds.isEmpty()) {
+            return;
+        }
+        roomMemberRepository.findByUserIdInAndRoomId(userIds, roomId)
+                .forEach(roomMember -> roomMember.updateLastReadMessageId(messageId));
     }
 
     @Transactional

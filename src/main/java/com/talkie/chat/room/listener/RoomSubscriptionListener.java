@@ -12,6 +12,7 @@ import org.springframework.web.socket.messaging.SessionUnsubscribeEvent;
 
 import java.security.Principal;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -26,6 +27,9 @@ public class RoomSubscriptionListener {
 
     // key: sessionId, value: (subscriptionId -> roomId)
     private final Map<String, Map<String, Long>> sessionRoomSubscriptions = new ConcurrentHashMap<>();
+
+    // key: roomId, value: 그 방을 구독 중인 userId 목록 (다중 세션 대비 참조 카운트)
+    private final Map<Long, Map<Long, Integer>> roomSubscriberCounts = new ConcurrentHashMap<>();
 
     @EventListener
     public void handleSubscribe(SessionSubscribeEvent event) {
@@ -43,7 +47,12 @@ public class RoomSubscriptionListener {
                 .computeIfAbsent(accessor.getSessionId(), key -> new ConcurrentHashMap<>())
                 .put(accessor.getSubscriptionId(), roomId);
 
-        markAsRead(accessor.getUser(), roomId);
+        Principal user = accessor.getUser();
+        if (user != null) {
+            addSubscriber(roomId, Long.valueOf(user.getName()));
+        }
+
+        markAsRead(user, roomId);
     }
 
     @EventListener
@@ -63,7 +72,12 @@ public class RoomSubscriptionListener {
             return;
         }
 
-        markAsRead(accessor.getUser(), roomId);
+        Principal user = accessor.getUser();
+        if (user != null) {
+            removeSubscriber(roomId, Long.valueOf(user.getName()));
+        }
+
+        markAsRead(user, roomId);
     }
 
     @EventListener
@@ -72,7 +86,43 @@ public class RoomSubscriptionListener {
         if (accessor == null) {
             return;
         }
-        sessionRoomSubscriptions.remove(accessor.getSessionId());
+
+        Map<String, Long> subscriptions = sessionRoomSubscriptions.remove(accessor.getSessionId());
+        if (subscriptions == null) {
+            return;
+        }
+
+        Principal user = accessor.getUser();
+        if (user == null) {
+            return;
+        }
+        Long userId = Long.valueOf(user.getName());
+        subscriptions.values().forEach(roomId -> removeSubscriber(roomId, userId));
+    }
+
+    /**
+     * 현재 해당 방을 구독 중인 유저 id 목록 (실시간 읽음 처리에 사용)
+     */
+    public Set<Long> getSubscriberIds(Long roomId) {
+        Map<Long, Integer> subscribers = roomSubscriberCounts.get(roomId);
+        return subscribers == null ? Set.of() : Set.copyOf(subscribers.keySet());
+    }
+
+    private void addSubscriber(Long roomId, Long userId) {
+        roomSubscriberCounts
+                .computeIfAbsent(roomId, key -> new ConcurrentHashMap<>())
+                .merge(userId, 1, Integer::sum);
+    }
+
+    private void removeSubscriber(Long roomId, Long userId) {
+        Map<Long, Integer> subscribers = roomSubscriberCounts.get(roomId);
+        if (subscribers == null) {
+            return;
+        }
+        subscribers.computeIfPresent(userId, (key, count) -> count > 1 ? count - 1 : null);
+        if (subscribers.isEmpty()) {
+            roomSubscriberCounts.remove(roomId, subscribers);
+        }
     }
 
     private Long extractRoomId(String destination) {
