@@ -2,6 +2,7 @@ package com.talkie.chat.room.controller;
 
 import com.talkie.chat.room.dto.RoomCreateRequest;
 import com.talkie.chat.room.dto.RoomResponse;
+import com.talkie.chat.room.dto.RoomSummaryResponse;
 import com.talkie.chat.room.service.RoomService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,8 +27,8 @@ public class RoomController {
     }
 
     @GetMapping
-    public ResponseEntity<List<RoomResponse>> getMyRooms(@AuthenticationPrincipal Long userId) {
-        List<RoomResponse> myRooms = roomService.getMyRooms(userId);
+    public ResponseEntity<List<RoomSummaryResponse>> getMyRooms(@AuthenticationPrincipal Long userId) {
+        List<RoomSummaryResponse> myRooms = roomService.getMyRooms(userId);
         return ResponseEntity.ok(myRooms);
     }
 

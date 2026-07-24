@@ -1,6 +1,8 @@
 package com.talkie.chat.room.service;
 
+import com.talkie.chat.message.repository.MessageRepository;
 import com.talkie.chat.room.dto.RoomResponse;
+import com.talkie.chat.room.dto.RoomSummaryResponse;
 import com.talkie.chat.room.entity.Room;
 import com.talkie.chat.room.entity.RoomMember;
 import com.talkie.chat.room.enums.Role;
@@ -13,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -25,6 +28,7 @@ public class RoomService {
     private final RoomRepository roomRepository;
     private final RoomMemberRepository roomMemberRepository;
     private final UserRepository userRepository;
+    private final MessageRepository messageRepository;
 
     @Transactional
     public RoomResponse createRoom(Long userId, String roomName, RoomType roomType, List<Long> memberIds) {
@@ -65,11 +69,27 @@ public class RoomService {
         return RoomResponse.from(createdRoom, roomMembers.size() + 1);
     }
 
-    public List<RoomResponse> getMyRooms(Long userId) {
-        return roomMemberRepository.findRoomsWithMemberCountByUserId(userId)
+    public List<RoomSummaryResponse> getMyRooms(Long userId) {
+        return roomMemberRepository.findSummaryRoomsInform(userId)
                 .stream()
-                .map(row -> new RoomResponse((Long) row[0], (String) row[1], (RoomType) row[2], ((Long) row[3]).intValue()))
+                .map(row -> new RoomSummaryResponse(
+                        (Long) row[0],
+                        (String) row[1],
+                        (String) row[2],
+                        (LocalDateTime) row[3],
+                        ((Long) row[4]).intValue(),
+                        ((Long) row[5]).intValue()
+                ))
                 .toList();
+    }
+
+    @Transactional
+    public void markAsRead(Long userId, Long roomId) {
+        RoomMember roomMember = roomMemberRepository.findByUserIdAndRoomId(userId, roomId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 방의 회원이 아닙니다."));
+
+        messageRepository.findLatestMessageIdByRoomId(roomId)
+                .ifPresent(roomMember::updateLastReadMessageId);
     }
 
     @Transactional
@@ -88,6 +108,7 @@ public class RoomService {
         }
         roomMemberRepository.delete(roomMember);
     }
+
     private Room findByRoomId(Long roomId) {
         return roomRepository.findById(roomId)
                 .orElseThrow(() -> new IllegalArgumentException("방을 찾을 수 없습니다."));

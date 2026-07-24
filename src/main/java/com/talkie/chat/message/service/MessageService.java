@@ -26,6 +26,7 @@ public class MessageService {
 
         Message message = new Message(content, roomMember.getUser(), roomMember.getRoom());
         Message savedMessage = messageRepository.save(message);
+        roomMember.updateLastReadMessageId(savedMessage.getId());
         return MessageResponse.from(savedMessage);
     }
 
