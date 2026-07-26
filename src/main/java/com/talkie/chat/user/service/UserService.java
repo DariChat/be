@@ -1,6 +1,8 @@
 package com.talkie.chat.user.service;
 
+import com.talkie.chat.global.exception.BusinessException;
 import com.talkie.chat.user.entity.User;
+import com.talkie.chat.user.exception.UserErrorCode;
 import com.talkie.chat.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -39,6 +41,6 @@ public class UserService {
 
     private User findUser(Long id) {
         return userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
     }
 }

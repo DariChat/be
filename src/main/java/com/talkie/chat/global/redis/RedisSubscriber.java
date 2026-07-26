@@ -1,5 +1,7 @@
 package com.talkie.chat.global.redis;
 
+import com.talkie.chat.global.exception.BusinessException;
+import com.talkie.chat.message.exception.MessageErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.context.ApplicationEventPublisher;
@@ -25,7 +27,7 @@ public class RedisSubscriber implements MessageListener {
             messagingTemplate.convertAndSend("/sub/rooms/" + roomId, chatMessage.message());
             eventPublisher.publishEvent(new MessageBroadcastedEvent(roomId, chatMessage.message().id()));
         } catch (Exception e) {
-            throw new IllegalArgumentException("유효하지 않은 메시지입니다.", e);
+            throw new BusinessException(MessageErrorCode.INVALID_BROADCAST_MESSAGE, e);
         }
     }
 }

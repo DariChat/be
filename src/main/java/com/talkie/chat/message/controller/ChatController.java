@@ -1,9 +1,11 @@
 package com.talkie.chat.message.controller;
 
+import com.talkie.chat.global.exception.BusinessException;
 import com.talkie.chat.global.redis.ChatMessage;
 import com.talkie.chat.global.redis.RedisPublisher;
 import com.talkie.chat.message.dto.ChatMessageRequest;
 import com.talkie.chat.message.dto.MessageResponse;
+import com.talkie.chat.message.exception.MessageErrorCode;
 import com.talkie.chat.message.service.MessageService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -39,20 +41,20 @@ public class ChatController {
         try {
             json = objectMapper.writeValueAsString(chatMessage);
         } catch (Exception e) {
-            throw new IllegalArgumentException("메시지 직렬화 실패", e);
+            throw new BusinessException(MessageErrorCode.SERIALIZATION_FAILED, e);
         }
 
         // TODO: publish 실패 시 재시도/보정 전략 필요 (DB 저장은 완료된 상태)
         try {
             redisPublisher.publish(channelTopic, json);
         } catch (Exception e) {
-            throw new IllegalArgumentException("메시지 발행 실패", e);
+            throw new BusinessException(MessageErrorCode.PUBLISH_FAILED, e);
         }
     }
 
-    @MessageExceptionHandler(IllegalArgumentException.class)
+    @MessageExceptionHandler(BusinessException.class)
     @SendToUser("/queue/errors")
-    public String handleException(IllegalArgumentException e) {
+    public String handleException(BusinessException e) {
         return e.getMessage();
     }
 

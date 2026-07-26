@@ -1,7 +1,9 @@
 package com.talkie.chat.message.service;
 
+import com.talkie.chat.global.exception.BusinessException;
 import com.talkie.chat.message.dto.MessageResponse;
 import com.talkie.chat.message.entity.Message;
+import com.talkie.chat.message.exception.MessageErrorCode;
 import com.talkie.chat.message.repository.MessageRepository;
 import com.talkie.chat.room.entity.RoomMember;
 import com.talkie.chat.room.repository.RoomMemberRepository;
@@ -22,7 +24,7 @@ public class MessageService {
     @Transactional
     public MessageResponse saveMessage(Long userId, Long roomId, String content) {
         RoomMember roomMember = roomMemberRepository.findByUserIdAndRoomId(userId, roomId)
-                .orElseThrow(() -> new IllegalArgumentException("채팅방 멤버가 아닙니다."));
+                .orElseThrow(() -> new BusinessException(MessageErrorCode.NOT_ROOM_MEMBER));
 
         Message message = new Message(content, roomMember.getUser(), roomMember.getRoom());
         Message savedMessage = messageRepository.save(message);
@@ -32,7 +34,7 @@ public class MessageService {
 
     public List<MessageResponse> findMessagesByRoomId(Long userId, Long roomId, Long cursor, int size) {
         if (!roomMemberRepository.existsByUserIdAndRoomId(userId, roomId)) {
-            throw new IllegalArgumentException("채팅방 멤버가 아닙니다.");
+            throw new BusinessException(MessageErrorCode.NOT_ROOM_MEMBER);
         }
 
         List<Message> findMessages;
