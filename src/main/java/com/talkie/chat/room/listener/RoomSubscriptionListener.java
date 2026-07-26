@@ -1,5 +1,6 @@
 package com.talkie.chat.room.listener;
 
+import com.talkie.chat.global.redis.MessageBroadcastedEvent;
 import com.talkie.chat.room.service.RoomService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.event.EventListener;
@@ -98,6 +99,17 @@ public class RoomSubscriptionListener {
         }
         Long userId = Long.valueOf(user.getName());
         subscriptions.values().forEach(roomId -> removeSubscriber(roomId, userId));
+    }
+
+    /**
+     * 같은 인스턴스에 연결된 구독자만 대상으로 읽음 처리한다.
+     * Redis pub/sub로 메시지를 수신한 모든 인스턴스에서 각자 호출되므로,
+     * 인스턴스 전체로 보면 전체 구독자에 대한 읽음 처리가 이루어진다.
+     */
+    @EventListener
+    public void handleMessageBroadcasted(MessageBroadcastedEvent event) {
+        Set<Long> subscriberIds = getSubscriberIds(event.roomId());
+        roomService.markAsRead(subscriberIds, event.roomId(), event.messageId());
     }
 
     /**

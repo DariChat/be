@@ -5,8 +5,6 @@ import com.talkie.chat.global.redis.RedisPublisher;
 import com.talkie.chat.message.dto.ChatMessageRequest;
 import com.talkie.chat.message.dto.MessageResponse;
 import com.talkie.chat.message.service.MessageService;
-import com.talkie.chat.room.listener.RoomSubscriptionListener;
-import com.talkie.chat.room.service.RoomService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.listener.ChannelTopic;
@@ -20,7 +18,6 @@ import org.springframework.stereotype.Controller;
 import tools.jackson.databind.ObjectMapper;
 
 import java.security.Principal;
-import java.util.Set;
 
 @Controller
 @RequiredArgsConstructor
@@ -30,8 +27,6 @@ public class ChatController {
     private final ObjectMapper objectMapper;
     private final ChannelTopic channelTopic;
     private final MessageService messageService;
-    private final RoomService roomService;
-    private final RoomSubscriptionListener roomSubscriptionListener;
 
     @MessageMapping("/rooms/{roomId}/send")
     public void sendMessage(@DestinationVariable Long roomId, @Valid @Payload ChatMessageRequest request, Principal principal) {
@@ -53,8 +48,6 @@ public class ChatController {
         } catch (Exception e) {
             throw new IllegalArgumentException("메시지 발행 실패", e);
         }
-        Set<Long> subscriberIds = roomSubscriptionListener.getSubscriberIds(roomId);
-        roomService.markAsRead(subscriberIds, roomId, messageResponse.id());
     }
 
     @MessageExceptionHandler(IllegalArgumentException.class)
