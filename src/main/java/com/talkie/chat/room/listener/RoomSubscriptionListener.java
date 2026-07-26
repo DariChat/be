@@ -115,14 +115,12 @@ public class RoomSubscriptionListener {
     }
 
     private void removeSubscriber(Long roomId, Long userId) {
-        Map<Long, Integer> subscribers = roomSubscriberCounts.get(roomId);
-        if (subscribers == null) {
-            return;
-        }
-        subscribers.computeIfPresent(userId, (key, count) -> count > 1 ? count - 1 : null);
-        if (subscribers.isEmpty()) {
-            roomSubscriberCounts.remove(roomId, subscribers);
-        }
+        roomSubscriberCounts.computeIfPresent(roomId, (key, subscribers) -> decrementAndPruneIfEmpty(subscribers, userId));
+    }
+
+    private Map<Long, Integer> decrementAndPruneIfEmpty(Map<Long, Integer> subscribers, Long userId) {
+        subscribers.computeIfPresent(userId, (uid, count) -> count > 1 ? count - 1 : null);
+        return subscribers.isEmpty() ? null : subscribers;
     }
 
     private Long extractRoomId(String destination) {
