@@ -32,6 +32,7 @@ public class ChatController {
     public void sendMessage(@DestinationVariable Long roomId, @Valid @Payload ChatMessageRequest request, Principal principal) {
         Long userId = Long.parseLong(principal.getName());
         MessageResponse messageResponse = messageService.saveMessage(userId, roomId, request.content());
+
         ChatMessage chatMessage = new ChatMessage(roomId, messageResponse);
 
         String json;

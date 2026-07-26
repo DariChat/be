@@ -40,9 +40,6 @@ public class RoomMember {
         this.room = room;
     }
 
-    public void updateLastReadMessageId(Long messageId) {
-        this.lastReadMessageId = messageId;
-    }
     public void changeRole(Role role) {
         this.role = role;
     }
