@@ -1,11 +1,13 @@
 package com.talkie.chat.room.listener;
 
+import com.talkie.chat.global.config.AsyncConfig;
 import com.talkie.chat.global.redis.MessageBroadcastedEvent;
 import com.talkie.chat.room.service.RoomService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import org.springframework.web.socket.messaging.SessionSubscribeEvent;
@@ -105,7 +107,10 @@ public class RoomSubscriptionListener {
      * 같은 인스턴스에 연결된 구독자만 대상으로 읽음 처리한다.
      * Redis pub/sub로 메시지를 수신한 모든 인스턴스에서 각자 호출되므로,
      * 인스턴스 전체로 보면 전체 구독자에 대한 읽음 처리가 이루어진다.
+     * 전용 executor에서 비동기로 실행되어, DB 지연/실패가 Redis 리스너 스레드를
+     * 막고 메시지 브로드캐스트 자체를 지연시키지 않도록 한다.
      */
+    @Async(AsyncConfig.READ_STATUS_EXECUTOR)
     @EventListener
     public void handleMessageBroadcasted(MessageBroadcastedEvent event) {
         Set<Long> subscriberIds = getSubscriberIds(event.roomId());
