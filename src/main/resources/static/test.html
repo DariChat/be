@@ -21,6 +21,21 @@
     let roomSubscription;
 
     function connect() {
+        if (roomSubscription) {
+            roomSubscription.unsubscribe();
+            roomSubscription = null;
+        }
+
+        if (stompClient && stompClient.connected) {
+            stompClient.disconnect(function () {
+                openConnection();
+            });
+        } else {
+            openConnection();
+        }
+    }
+
+    function openConnection() {
         const token = document.getElementById('token').value;
         const socket = new WebSocket('ws://localhost:8080/ws-talkie');
         stompClient = Stomp.over(socket);
