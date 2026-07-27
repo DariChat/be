@@ -1,5 +1,6 @@
 package com.talkie.chat.room.service;
 
+import com.talkie.chat.global.exception.BusinessException;
 import com.talkie.chat.message.repository.MessageRepository;
 import com.talkie.chat.room.dto.RoomResponse;
 import com.talkie.chat.room.dto.RoomSummaryResponse;
@@ -7,6 +8,7 @@ import com.talkie.chat.room.entity.Room;
 import com.talkie.chat.room.entity.RoomMember;
 import com.talkie.chat.room.enums.Role;
 import com.talkie.chat.room.enums.RoomType;
+import com.talkie.chat.room.exception.RoomErrorCode;
 import com.talkie.chat.room.repository.RoomMemberRepository;
 import com.talkie.chat.room.repository.RoomRepository;
 import com.talkie.chat.user.entity.User;
@@ -33,17 +35,21 @@ public class RoomService {
 
     @Transactional
     public RoomResponse createRoom(Long userId, String roomName, RoomType roomType, List<Long> memberIds) {
+        if (memberIds == null || memberIds.isEmpty()) {
+            throw new BusinessException(RoomErrorCode.MEMBER_IDS_REQUIRED);
+        }
+
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("없는 유저입니다."));
+                .orElseThrow(() -> new BusinessException(RoomErrorCode.USER_NOT_FOUND));
 
         if (roomType == RoomType.GROUP) {
             if (roomName == null) {
-                throw new IllegalArgumentException("그룹 채팅은 방 이름이 필수입니다.");
+                throw new BusinessException(RoomErrorCode.ROOM_NAME_REQUIRED);
             }
         } else {
             if (roomName == null) {
                 User inviteUser = userRepository.findById(memberIds.get(0))
-                        .orElseThrow(() -> new IllegalArgumentException("없는 유저입니다."));
+                        .orElseThrow(() -> new BusinessException(RoomErrorCode.USER_NOT_FOUND));
                 roomName = inviteUser.getNickname();
             }
         }
@@ -56,7 +62,7 @@ public class RoomService {
         List<Long> requestIds = memberIds.stream().distinct().toList();
         List<User> members = userRepository.findAllById(requestIds);
         if (members.size() != requestIds.size()) {
-            throw new IllegalArgumentException("존재하지 않는 초대 대상이 있습니다.");
+            throw new BusinessException(RoomErrorCode.INVITEE_NOT_FOUND);
         }
 
         List<RoomMember> roomMembers = new ArrayList<>();
@@ -87,7 +93,7 @@ public class RoomService {
     @Transactional
     public void markAsRead(Long userId, Long roomId) {
         if (!roomMemberRepository.existsByUserIdAndRoomId(userId, roomId)) {
-            throw new IllegalArgumentException("해당 방의 회원이 아닙니다.");
+            throw new BusinessException(RoomErrorCode.NOT_ROOM_MEMBER);
         }
 
         messageRepository.findLatestMessageIdByRoomId(roomId)
@@ -106,7 +112,7 @@ public class RoomService {
     public void leaveRoom(Long userId, Long roomId) {
         Room room = findByRoomId(roomId);
         RoomMember roomMember = roomMemberRepository.findByUserIdAndRoomId(userId, room.getId())
-                .orElseThrow(() -> new IllegalArgumentException("해당 방의 회원이 아닙니다."));
+                .orElseThrow(() -> new BusinessException(RoomErrorCode.NOT_ROOM_MEMBER));
 
         if (roomMember.getRole() == Role.OWNER) {
             Optional<RoomMember> nextOwner = roomMemberRepository.findOldestMemberByRoomId(roomId);
@@ -121,6 +127,6 @@ public class RoomService {
 
     private Room findByRoomId(Long roomId) {
         return roomRepository.findById(roomId)
-                .orElseThrow(() -> new IllegalArgumentException("방을 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(RoomErrorCode.ROOM_NOT_FOUND));
     }
 }

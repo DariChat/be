@@ -3,7 +3,9 @@ package com.talkie.chat.auth.service;
 import com.talkie.chat.auth.dto.LoginRequest;
 import com.talkie.chat.auth.dto.SignupRequest;
 import com.talkie.chat.auth.dto.TokenResponse;
+import com.talkie.chat.auth.exception.AuthErrorCode;
 import com.talkie.chat.auth.repository.RefreshTokenRepository;
+import com.talkie.chat.global.exception.BusinessException;
 import com.talkie.chat.global.jwt.JwtProvider;
 import com.talkie.chat.user.dto.UserResponse;
 import com.talkie.chat.user.entity.User;
@@ -27,10 +29,10 @@ public class AuthService {
     @Transactional
     public UserResponse signup(SignupRequest request) {
         if (userRepository.existsByEmail(request.email())) {
-            throw new IllegalArgumentException("이미 사용 중인 이메일입니다.");
+            throw new BusinessException(AuthErrorCode.DUPLICATE_EMAIL);
         }
         if (userRepository.existsByNickname(request.nickname())) {
-            throw new IllegalArgumentException("이미 사용 중인 닉네임입니다.");
+            throw new BusinessException(AuthErrorCode.DUPLICATE_NICKNAME);
         }
 
         try {
@@ -42,17 +44,17 @@ public class AuthService {
                     null);
             return UserResponse.from(userRepository.save(user));
         } catch (DataIntegrityViolationException e) {
-            throw new IllegalArgumentException("이미 사용 중인 이메일 또는 닉네임입니다.", e);
+            throw new BusinessException(AuthErrorCode.DUPLICATE_EMAIL_OR_NICKNAME, e);
         }
     }
 
     @Transactional
     public TokenResponse login(LoginRequest request) {
         User user = userRepository.findByEmail(request.email())
-                .orElseThrow(() -> new IllegalArgumentException("이메일 또는 비밀번호가 올바르지 않습니다."));
+                .orElseThrow(() -> new BusinessException(AuthErrorCode.LOGIN_FAILED));
 
         if (!passwordEncoder.matches(request.password(), user.getPassword())) {
-            throw new IllegalArgumentException("이메일 또는 비밀번호가 올바르지 않습니다.");
+            throw new BusinessException(AuthErrorCode.LOGIN_FAILED);
         }
 
         user.updateLastActiveAt();
@@ -66,14 +68,14 @@ public class AuthService {
 
     public TokenResponse reissue(String refreshToken) {
         if (!jwtProvider.isValid(refreshToken) || !jwtProvider.isRefreshToken(refreshToken)) {
-            throw new IllegalArgumentException("유효하지 않은 토큰입니다.");
+            throw new BusinessException(AuthErrorCode.INVALID_TOKEN);
         }
 
         Long extractUserId = jwtProvider.extractUserId(refreshToken);
 
         String token = refreshTokenRepository.find(extractUserId);
         if (!refreshToken.equals(token)) {
-            throw new IllegalArgumentException("유효하지 않은 토큰입니다.");
+            throw new BusinessException(AuthErrorCode.INVALID_TOKEN);
         }
 
         String generatedAccessToken = jwtProvider.generateAccessToken(extractUserId);
@@ -85,7 +87,7 @@ public class AuthService {
 
     public void logout(String token) {
         if (!jwtProvider.isValid(token) || !jwtProvider.isRefreshToken(token)) {
-            throw new IllegalArgumentException("유효하지 않은 토큰입니다.");
+            throw new BusinessException(AuthErrorCode.INVALID_TOKEN);
         }
 
         Long extractUserId = jwtProvider.extractUserId(token);

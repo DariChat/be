@@ -43,6 +43,10 @@ dependencies {
 
 	// Redis
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+	// Retry
+	implementation 'org.springframework.retry:spring-retry:2.0.10'
+	implementation 'org.springframework.boot:spring-boot-starter-aspectj'
 }
 
 tasks.named('test') {

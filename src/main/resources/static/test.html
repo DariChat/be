@@ -14,11 +14,16 @@
 <br/><br/>
 <input id="content" placeholder="메시지 내용" style="width:300px"/>
 <button onclick="sendMessage()">전송</button>
+<button id="retryButton" onclick="retryMessage()" style="display:none">재시도</button>
 <div id="log"></div>
 
 <script>
     let stompClient;
     let roomSubscription;
+    // 전송 시도 중(또는 실패해 재시도 대기 중)인 메시지 하나.
+    // 실패 후 재시도 시에도 이 clientMessageId를 그대로 재사용해야
+    // 서버가 동일 전송 시도로 인식해 중복 저장하지 않는다.
+    let pendingMessage = null;
 
     function connect() {
         if (roomSubscription) {
@@ -43,7 +48,12 @@
         stompClient.connect({'Authorization': 'Bearer ' + token}, function () {
             log('연결됨');
             stompClient.subscribe('/user/queue/errors', function (message) {
-                log('에러: ' + message.body);
+                const error = JSON.parse(message.body);
+                log('에러: [' + error.code + '] ' + error.message);
+                if (pendingMessage) {
+                    // 전송 실패 - 재시도 가능하도록 pendingMessage를 유지하고 버튼만 노출
+                    document.getElementById('retryButton').style.display = 'inline';
+                }
             });
         }, function (error) {
             log('연결 실패: ' + error);
@@ -59,6 +69,12 @@
         const roomId = document.getElementById('roomId').value;
         roomSubscription = stompClient.subscribe('/sub/rooms/' + roomId, function (message) {
             log('받은 메시지: ' + message.body);
+            // 브로드캐스트로 되돌아온 메시지가 pendingMessage와 같은 전송 시도라면
+            // 전송이 최종 성공한 것이므로 재시도 대기 상태를 정리한다.
+            const received = JSON.parse(message.body);
+            if (pendingMessage && received.clientMessageId === pendingMessage.clientMessageId) {
+                clearPendingMessage();
+            }
         });
         log('방 입장(구독): ' + roomId);
     }
@@ -74,7 +90,32 @@
     function sendMessage() {
         const roomId = document.getElementById('roomId').value;
         const content = document.getElementById('content').value;
-        stompClient.send('/pub/rooms/' + roomId + '/send', {}, JSON.stringify({content: content}));
+        // 새 전송 시도이므로 새 clientMessageId를 생성한다.
+        pendingMessage = {roomId: roomId, content: content, clientMessageId: crypto.randomUUID()};
+        document.getElementById('retryButton').style.display = 'none';
+        doSend(pendingMessage);
+    }
+
+    function retryMessage() {
+        if (!pendingMessage) {
+            return;
+        }
+        // 실패한 전송의 재시도이므로 같은 clientMessageId를 그대로 재사용한다.
+        // 서버는 이 값으로 이미 저장된 메시지를 찾아 중복 저장 없이 발행만 재시도한다.
+        log('재시도: ' + pendingMessage.clientMessageId);
+        doSend(pendingMessage);
+    }
+
+    function doSend(message) {
+        stompClient.send('/pub/rooms/' + message.roomId + '/send', {}, JSON.stringify({
+            content: message.content,
+            clientMessageId: message.clientMessageId
+        }));
+    }
+
+    function clearPendingMessage() {
+        pendingMessage = null;
+        document.getElementById('retryButton').style.display = 'none';
     }
 
     function log(msg) {

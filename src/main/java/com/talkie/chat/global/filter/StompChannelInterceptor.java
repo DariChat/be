@@ -1,5 +1,7 @@
 package com.talkie.chat.global.filter;
 
+import com.talkie.chat.auth.exception.AuthErrorCode;
+import com.talkie.chat.global.exception.BusinessException;
 import com.talkie.chat.global.jwt.JwtProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.Message;
@@ -28,7 +30,7 @@ public class StompChannelInterceptor implements ChannelInterceptor {
 
             jwtProvider.extractValidateUserId(token, "access")
                     .ifPresentOrElse(userId -> accessor.setUser(() -> String.valueOf(userId)),
-                            () -> { throw new IllegalArgumentException("유효하지 않은 토큰입니다."); }
+                            () -> { throw new BusinessException(AuthErrorCode.INVALID_TOKEN); }
                     );
         }
         return message;
