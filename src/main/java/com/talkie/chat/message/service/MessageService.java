@@ -8,6 +8,11 @@ import com.talkie.chat.message.repository.MessageRepository;
 import com.talkie.chat.room.entity.RoomMember;
 import com.talkie.chat.room.repository.RoomMemberRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Recover;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +22,8 @@ import java.util.List;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class MessageService {
+
+    private static final Logger log = LoggerFactory.getLogger(MessageService.class);
 
     private final MessageRepository messageRepository;
     private final RoomMemberRepository roomMemberRepository;
@@ -42,9 +49,20 @@ public class MessageService {
         return MessageResponse.from(savedMessage);
     }
 
+    /**
+     * Redis publish는 이미 성공한 뒤 호출되므로 여기서 실패해도 재발행으로
+     * 이어지면 안 된다. DB 순단 등 일시적 장애를 흡수하기 위해 짧게 재시도하고,
+     * 그래도 실패하면 recoverMarkPublished에서 상태 불일치를 로그로 남긴다.
+     */
     @Transactional
+    @Retryable(retryFor = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 200, multiplier = 2))
     public void markPublished(Long messageId) {
         messageRepository.findById(messageId).ifPresent(Message::markPublished);
+    }
+
+    @Recover
+    public void recoverMarkPublished(Exception e, Long messageId) {
+        log.error("발행은 성공했으나 publishStatus=PUBLISHED 기록에 재시도 후에도 실패했습니다. messageId={}", messageId, e);
     }
 
     @Transactional

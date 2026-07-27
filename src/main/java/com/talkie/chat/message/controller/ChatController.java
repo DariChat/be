@@ -63,6 +63,11 @@ public class ChatController {
             messageService.markPublishFailed(messageResponse.id());
             throw new BusinessException(MessageErrorCode.PUBLISH_FAILED, e);
         }
+
+        // publish는 이미 성공했으므로 여기서부터는 절대 재발행하면 안 된다.
+        // markPublished는 내부에서 재시도 후 실패하면 로그만 남기고 예외를 던지지 않는다 -
+        // 여기서 예외가 나가면 클라이언트가 같은 clientMessageId로 재요청했을 때
+        // publishStatus가 여전히 PENDING이라 중복 브로드캐스트로 이어지기 때문이다.
         messageService.markPublished(messageResponse.id());
     }
 
