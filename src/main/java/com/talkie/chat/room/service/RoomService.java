@@ -35,6 +35,10 @@ public class RoomService {
 
     @Transactional
     public RoomResponse createRoom(Long userId, String roomName, RoomType roomType, List<Long> memberIds) {
+        if (memberIds == null || memberIds.isEmpty()) {
+            throw new BusinessException(RoomErrorCode.MEMBER_IDS_REQUIRED);
+        }
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(RoomErrorCode.USER_NOT_FOUND));
 
