@@ -40,9 +40,17 @@ public class ChatController {
         // 같은 clientMessageId로 재요청하면 새로 저장하지 않고 기존 메시지를 그대로 사용한다.
         MessageResponse messageResponse = messageService.saveMessage(userId, roomId, request.content(), request.clientMessageId());
 
-        if (messageResponse.publishStatus() == PublishStatus.PUBLISHED) {
-            // 이미 발행에 성공한 메시지의 재요청(응답 유실 등으로 인한 클라이언트 재시도) -
-            // 중복 브로드캐스트를 막기 위해 재발행하지 않는다.
+        if (messageResponse.publishStatus() == PublishStatus.PUBLISHED
+                || messageResponse.publishStatus() == PublishStatus.PUBLISHING) {
+            // 이미 발행에 성공했거나(PUBLISHED) 다른 요청이 지금 발행 중인(PUBLISHING)
+            // 메시지의 재요청 - 중복 브로드캐스트를 막기 위해 재발행하지 않는다.
+            return;
+        }
+
+        // PENDING/FAILED 상태일 때만 PUBLISHING으로 원자적 전이를 시도한다. 같은
+        // clientMessageId로 요청이 동시에 겹쳐도 단 하나만 true를 받아 실제로
+        // Redis에 발행하고, 나머지는 false를 받아 여기서 조용히 종료한다.
+        if (!messageService.tryStartPublishing(messageResponse.id())) {
             return;
         }
 
