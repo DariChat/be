@@ -5,6 +5,7 @@ import com.talkie.chat.global.redis.ChatMessage;
 import com.talkie.chat.global.redis.RedisPublisher;
 import com.talkie.chat.message.dto.ChatMessageRequest;
 import com.talkie.chat.message.dto.MessageResponse;
+import com.talkie.chat.message.enums.PublishStatus;
 import com.talkie.chat.message.exception.MessageErrorCode;
 import com.talkie.chat.message.service.MessageService;
 import jakarta.validation.Valid;
@@ -33,7 +34,15 @@ public class ChatController {
     @MessageMapping("/rooms/{roomId}/send")
     public void sendMessage(@DestinationVariable Long roomId, @Valid @Payload ChatMessageRequest request, Principal principal) {
         Long userId = Long.parseLong(principal.getName());
-        MessageResponse messageResponse = messageService.saveMessage(userId, roomId, request.content());
+        // saveMessage는 clientMessageId로 멱등하게 저장한다. 발행 실패 후 클라이언트가
+        // 같은 clientMessageId로 재요청하면 새로 저장하지 않고 기존 메시지를 그대로 사용한다.
+        MessageResponse messageResponse = messageService.saveMessage(userId, roomId, request.content(), request.clientMessageId());
+
+        if (messageResponse.publishStatus() == PublishStatus.PUBLISHED) {
+            // 이미 발행에 성공한 메시지의 재요청(응답 유실 등으로 인한 클라이언트 재시도) -
+            // 중복 브로드캐스트를 막기 위해 재발행하지 않는다.
+            return;
+        }
 
         ChatMessage chatMessage = new ChatMessage(roomId, messageResponse);
 
@@ -41,15 +50,20 @@ public class ChatController {
         try {
             json = objectMapper.writeValueAsString(chatMessage);
         } catch (Exception e) {
+            messageService.markPublishFailed(messageResponse.id());
             throw new BusinessException(MessageErrorCode.SERIALIZATION_FAILED, e);
         }
 
-        // TODO: publish 실패 시 재시도/보정 전략 필요 (DB 저장은 완료된 상태)
         try {
             redisPublisher.publish(channelTopic, json);
         } catch (Exception e) {
+            // DB 저장은 이미 커밋된 상태 - 메시지를 취소하는 대신 발행 실패로 표시해
+            // 상태 불일치(저장은 됐는데 아무도 못 받은 메시지)를 드러내고, 재시도는
+            // 클라이언트가 동일한 clientMessageId로 재요청하도록 위임한다.
+            messageService.markPublishFailed(messageResponse.id());
             throw new BusinessException(MessageErrorCode.PUBLISH_FAILED, e);
         }
+        messageService.markPublished(messageResponse.id());
     }
 
     @MessageExceptionHandler(BusinessException.class)

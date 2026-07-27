@@ -15,5 +15,6 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     List<Message> findFirstMessages(@Param("roomId") Long roomId, @Param("size") int size);
     @Query("SELECT m.id FROM Message m WHERE m.room.id = :roomId AND m.deletedAt IS NULL ORDER BY m.id DESC LIMIT 1")
     Optional<Long> findLatestMessageIdByRoomId(@Param("roomId") Long roomId);
+    Optional<Message> findByClientMessageId(String clientMessageId);
 }
 
