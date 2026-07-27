@@ -48,7 +48,8 @@
         stompClient.connect({'Authorization': 'Bearer ' + token}, function () {
             log('연결됨');
             stompClient.subscribe('/user/queue/errors', function (message) {
-                log('에러: ' + message.body);
+                const error = JSON.parse(message.body);
+                log('에러: [' + error.code + '] ' + error.message);
                 if (pendingMessage) {
                     // 전송 실패 - 재시도 가능하도록 pendingMessage를 유지하고 버튼만 노출
                     document.getElementById('retryButton').style.display = 'inline';

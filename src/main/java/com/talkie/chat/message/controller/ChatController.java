@@ -1,6 +1,8 @@
 package com.talkie.chat.message.controller;
 
 import com.talkie.chat.global.exception.BusinessException;
+import com.talkie.chat.global.exception.CommonErrorCode;
+import com.talkie.chat.global.exception.ErrorResponse;
 import com.talkie.chat.global.redis.ChatMessage;
 import com.talkie.chat.global.redis.RedisPublisher;
 import com.talkie.chat.message.dto.ChatMessageRequest;
@@ -73,13 +75,17 @@ public class ChatController {
 
     @MessageExceptionHandler(BusinessException.class)
     @SendToUser("/queue/errors")
-    public String handleException(BusinessException e) {
-        return e.getMessage();
+    public ErrorResponse handleException(BusinessException e) {
+        return ErrorResponse.from(e.getErrorCode());
     }
 
     @MessageExceptionHandler(MethodArgumentNotValidException.class)
     @SendToUser("/queue/errors")
-    public String handleValidationException(MethodArgumentNotValidException e) {
-        return "입력값이 올바르지 않습니다.";
+    public ErrorResponse handleValidationException(MethodArgumentNotValidException e) {
+        String message = e.getBindingResult().getFieldErrors().stream()
+                .findFirst()
+                .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                .orElse(CommonErrorCode.INVALID_INPUT.getMessage());
+        return ErrorResponse.of(CommonErrorCode.INVALID_INPUT, message);
     }
 }
