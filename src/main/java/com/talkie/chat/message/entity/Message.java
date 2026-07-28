@@ -14,7 +14,11 @@ import java.time.LocalDateTime;
 
 @Entity
 @Getter
-@Table(name = "message")
+@Table(name = "message", indexes = {
+        // 방별 최신 메시지 목록 조회(room_id 필터 + created_at 정렬)를 커버하기 위한 복합 인덱스.
+        // room_id 단독 인덱스는 필터링 후 정렬(filesort)이 별도로 발생해, 이 인덱스로 대체한다.
+        @Index(name = "idx_message_room_created", columnList = "room_id, created_at DESC")
+})
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
 public class Message {

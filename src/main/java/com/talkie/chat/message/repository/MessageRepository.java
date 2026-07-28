@@ -7,16 +7,26 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 public interface MessageRepository extends JpaRepository<Message, Long> {
-    @Query("SELECT m FROM Message m JOIN FETCH m.user WHERE m.room.id = :roomId AND m.id < :cursor AND m.deletedAt IS NULL ORDER BY m.id DESC LIMIT :size")
-    List<Message> findMessages(@Param("roomId") Long roomId, @Param("cursor") Long cursor, @Param("size") int size);
-    @Query("SELECT m FROM Message m JOIN FETCH m.user WHERE m.room.id = :roomId AND m.deletedAt IS NULL ORDER BY m.id DESC LIMIT :size")
+    /**
+     * 정렬/커서 기준을 created_at 단독으로 맞춰 (room_id, created_at) 복합 인덱스를
+     * filesort 없이 그대로 탄다. 처음엔 (createdAt, id) 튜플을 커서로 써서 동시간대
+     * 메시지까지 안정적으로 구분하려 했으나, MySQL이 OR/튜플 비교 조건에서는 인덱스가
+     * 보장하는 정렬 순서를 신뢰하지 못해 filesort로 되돌아가 버렸다 (id 정렬 때와
+     * 동일한 문제가 재발). LocalDateTime이 마이크로초 정밀도라 실사용에서 동시간대
+     * 충돌 가능성은 무시할 수준이라 판단해 created_at 단독 커서로 단순화했다.
+     */
+    @Query("SELECT m FROM Message m JOIN FETCH m.user WHERE m.room.id = :roomId AND m.deletedAt IS NULL " +
+            "AND m.createdAt < :cursor ORDER BY m.createdAt DESC LIMIT :size")
+    List<Message> findMessages(@Param("roomId") Long roomId, @Param("cursor") LocalDateTime cursor, @Param("size") int size);
+    @Query("SELECT m FROM Message m JOIN FETCH m.user WHERE m.room.id = :roomId AND m.deletedAt IS NULL ORDER BY m.createdAt DESC LIMIT :size")
     List<Message> findFirstMessages(@Param("roomId") Long roomId, @Param("size") int size);
-    @Query("SELECT m.id FROM Message m WHERE m.room.id = :roomId AND m.deletedAt IS NULL ORDER BY m.id DESC LIMIT 1")
+    @Query("SELECT m.id FROM Message m WHERE m.room.id = :roomId AND m.deletedAt IS NULL ORDER BY m.createdAt DESC LIMIT 1")
     Optional<Long> findLatestMessageIdByRoomId(@Param("roomId") Long roomId);
     Optional<Message> findByClientMessageId(String clientMessageId);
 

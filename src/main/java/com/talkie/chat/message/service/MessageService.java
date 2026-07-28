@@ -17,6 +17,7 @@ import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.EnumSet;
 import java.util.List;
 
@@ -108,7 +109,7 @@ public class MessageService {
         messageRepository.findById(messageId).ifPresent(Message::markPublishFailed);
     }
 
-    public List<MessageResponse> findMessagesByRoomId(Long userId, Long roomId, Long cursor, int size) {
+    public List<MessageResponse> findMessagesByRoomId(Long userId, Long roomId, LocalDateTime cursor, int size) {
         if (!roomMemberRepository.existsByUserIdAndRoomId(userId, roomId)) {
             throw new BusinessException(MessageErrorCode.NOT_ROOM_MEMBER);
         }
