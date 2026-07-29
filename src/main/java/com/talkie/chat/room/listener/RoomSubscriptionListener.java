@@ -1,7 +1,7 @@
 package com.talkie.chat.room.listener;
 
 import com.talkie.chat.global.config.AsyncConfig;
-import com.talkie.chat.global.redis.MessageBroadcastedEvent;
+import com.talkie.chat.message.event.MessageBroadcastedEvent;
 import com.talkie.chat.room.service.RoomService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.event.EventListener;
