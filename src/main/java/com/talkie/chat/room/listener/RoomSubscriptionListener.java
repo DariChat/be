@@ -28,10 +28,8 @@ public class RoomSubscriptionListener {
 
     private final RoomService roomService;
 
-    // key: sessionId, value: (subscriptionId -> roomId)
     private final Map<String, Map<String, Long>> sessionRoomSubscriptions = new ConcurrentHashMap<>();
 
-    // key: roomId, value: 그 방을 구독 중인 userId 목록 (다중 세션 대비 참조 카운트)
     private final Map<Long, Map<Long, Integer>> roomSubscriberCounts = new ConcurrentHashMap<>();
 
     @EventListener
@@ -103,13 +101,6 @@ public class RoomSubscriptionListener {
         subscriptions.values().forEach(roomId -> removeSubscriber(roomId, userId));
     }
 
-    /**
-     * 같은 인스턴스에 연결된 구독자만 대상으로 읽음 처리한다.
-     * Redis pub/sub로 메시지를 수신한 모든 인스턴스에서 각자 호출되므로,
-     * 인스턴스 전체로 보면 전체 구독자에 대한 읽음 처리가 이루어진다.
-     * 전용 executor에서 비동기로 실행되어, DB 지연/실패가 Redis 리스너 스레드를
-     * 막고 메시지 브로드캐스트 자체를 지연시키지 않도록 한다.
-     */
     @Async(AsyncConfig.READ_STATUS_EXECUTOR)
     @EventListener
     public void handleMessageBroadcasted(MessageBroadcastedEvent event) {
@@ -117,9 +108,6 @@ public class RoomSubscriptionListener {
         roomService.markAsRead(subscriberIds, event.roomId(), event.messageId());
     }
 
-    /**
-     * 현재 해당 방을 구독 중인 유저 id 목록 (실시간 읽음 처리에 사용)
-     */
     public Set<Long> getSubscriberIds(Long roomId) {
         Map<Long, Integer> subscribers = roomSubscriberCounts.get(roomId);
         return subscribers == null ? Set.of() : Set.copyOf(subscribers.keySet());

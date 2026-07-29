@@ -1,6 +1,7 @@
 package com.talkie.chat.room.service;
 
 import com.talkie.chat.global.exception.BusinessException;
+import com.talkie.chat.message.entity.Message;
 import com.talkie.chat.message.repository.MessageRepository;
 import com.talkie.chat.room.dto.RoomResponse;
 import com.talkie.chat.room.dto.RoomSummaryResponse;
@@ -17,11 +18,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -77,17 +79,33 @@ public class RoomService {
     }
 
     public List<RoomSummaryResponse> getMyRooms(Long userId) {
-        return roomMemberRepository.findSummaryRoomsInform(userId)
-                .stream()
-                .map(row -> new RoomSummaryResponse(
-                        (Long) row[0],
-                        (String) row[1],
-                        (String) row[2],
-                        (LocalDateTime) row[3],
-                        ((Long) row[4]).intValue(),
-                        ((Long) row[5]).intValue()
-                ))
+        List<RoomMember> myRoomMembers = roomMemberRepository.findByUserId(userId);
+        if (myRoomMembers.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> roomIds = myRoomMembers.stream().map(rm -> rm.getRoom().getId()).toList();
+        Map<Long, Long> memberCountByRoomId = roomMemberRepository.countMembersByRoomIdIn(roomIds).stream()
+                .collect(Collectors.toMap(row -> (Long) row[0], row -> (Long) row[1]));
+
+        return myRoomMembers.stream()
+                .map(rm -> toSummary(rm, memberCountByRoomId.getOrDefault(rm.getRoom().getId(), 0L)))
                 .toList();
+    }
+
+    private RoomSummaryResponse toSummary(RoomMember myRoomMember, long memberCount) {
+        Long roomId = myRoomMember.getRoom().getId();
+        Optional<Message> lastMessage = messageRepository.findFirstMessages(roomId, 1).stream().findFirst();
+        long unreadCount = messageRepository.countUnread(roomId, myRoomMember.getLastReadMessageId());
+
+        return new RoomSummaryResponse(
+                roomId,
+                myRoomMember.getRoom().getRoomName(),
+                lastMessage.map(Message::getContent).orElse(null),
+                lastMessage.map(Message::getCreatedAt).orElse(null),
+                (int) memberCount,
+                (int) unreadCount
+        );
     }
 
     @Transactional

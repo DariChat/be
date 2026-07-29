@@ -25,11 +25,6 @@ public class MessageController {
 
     private final MessageService messageService;
 
-    /**
-     * 커서는 이전 응답의 마지막 메시지 (createdAt, id)를 그대로 넘긴다. created_at 단독
-     * 커서는 동일 시각에 걸친 메시지를 다음 페이지에서 누락시킬 수 있어, id를 타이브레이커로
-     * 함께 받는다. 첫 페이지는 두 파라미터 모두 없이 요청한다.
-     */
     @GetMapping("/rooms/{roomId}/messages")
     public ResponseEntity<List<MessageResponse>> getMessages(@AuthenticationPrincipal Long userId,
                                                              @PathVariable Long roomId,

@@ -25,8 +25,6 @@ public class AsyncConfig implements AsyncConfigurer {
         executor.setMaxPoolSize(4);
         executor.setQueueCapacity(200);
         executor.setThreadNamePrefix("read-status-");
-        // 읽음 처리는 유실되어도 다음 메시지/재구독 시 다시 갱신되는 멱등한 부가 기능이므로,
-        // 큐가 가득 차면 Redis 리스너 스레드를 막지 않도록 버리고 로그만 남긴다.
         executor.setRejectedExecutionHandler((runnable, threadPoolExecutor) ->
                 log.warn("읽음 처리 큐 초과로 작업 폐기: active={}, queueSize={}",
                         threadPoolExecutor.getActiveCount(), threadPoolExecutor.getQueue().size()));
