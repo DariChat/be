@@ -1,6 +1,7 @@
 package com.talkie.chat.message.service;
 
 import com.talkie.chat.global.exception.BusinessException;
+import com.talkie.chat.message.dto.MessageCursor;
 import com.talkie.chat.message.dto.MessageResponse;
 import com.talkie.chat.message.entity.Message;
 import com.talkie.chat.message.enums.PublishStatus;
@@ -17,7 +18,6 @@ import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.EnumSet;
 import java.util.List;
 
@@ -109,7 +109,7 @@ public class MessageService {
         messageRepository.findById(messageId).ifPresent(Message::markPublishFailed);
     }
 
-    public List<MessageResponse> findMessagesByRoomId(Long userId, Long roomId, LocalDateTime cursor, int size) {
+    public List<MessageResponse> findMessagesByRoomId(Long userId, Long roomId, MessageCursor cursor, int size) {
         if (!roomMemberRepository.existsByUserIdAndRoomId(userId, roomId)) {
             throw new BusinessException(MessageErrorCode.NOT_ROOM_MEMBER);
         }
@@ -118,7 +118,7 @@ public class MessageService {
         if (cursor == null) {
             findMessages = messageRepository.findFirstMessages(roomId, size);
         } else {
-            findMessages = messageRepository.findMessages(roomId, cursor, size);
+            findMessages = messageRepository.findMessages(roomId, cursor.createdAt(), cursor.id(), size);
         }
 
         return findMessages.stream()

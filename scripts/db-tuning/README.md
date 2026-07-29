@@ -134,7 +134,7 @@ findLatestMessageIdByRoomId(roomId)           // ORDER BY id DESC LIMIT 1
 - 이번 이슈의 대상 쿼리(`created_at` 정렬)만 보면 압도적으로 개선되지만, 같은 테이블의 다른 쿼리(`id` 정렬)는 손해를 본다 — **인덱스는 공짜가 아니고, 한 쿼리 패턴에 맞추면 다른 패턴이 희생될 수 있다**는 걸 실측으로 확인한 것.
 - `id`는 DB가 편의상 자동 증가시키는 대리키일 뿐, "메시지가 온 시간 순서"라는 의미를 담고 있는 건 `created_at`이다. 애초에 `id` 정렬은 "auto-increment라 시간 순서랑 거의 같으니 대충 써도 되겠지"라는 암묵적 가정이었을 뿐, 의미상으로도 `created_at` 정렬이 맞다 — 그래서 **정렬 기준 자체를 `created_at`으로 통일**하는 쪽으로 코드를 변경했다 (아래 8절).
 
-### 8. 후속 조치 — findMessages/findFirstMessages 정렬 기준을 created_at으로 통일
+### 8. 후속 조치 — findMessages/findFirstMessages 정렬 기준을 created_at으로 통일, (created_at, id) 키셋 커서로 정정
 
 `MessageRepository`/`MessageService`/`MessageController`의 커서 페이지네이션을 `id` 기준에서 `created_at` 기준으로 바꿨다.
 
@@ -143,30 +143,33 @@ findLatestMessageIdByRoomId(roomId)           // ORDER BY id DESC LIMIT 1
 WHERE created_at < :cursor OR (created_at = :cursor AND id < :cursorId)
 ORDER BY created_at DESC, id DESC
 ```
-그런데 이 `OR` 조건과 `id` 보조 정렬을 EXPLAIN으로 확인하니 **filesort가 다시 발생**했다 (`Sort: message.created_at DESC, message.id DESC`, 2204ms). MySQL 8.0의 로우 값 비교(`(created_at, id) < (?, ?)`)로도 시도했지만 인덱스 access 조건이 아니라 `Filter`로만 처리되어 마찬가지로 filesort가 붙었다 (648ms). 즉 id 정렬 때와 똑같은 문제가 타이브레이커를 추가하는 순간 재발한 것.
+그런데 당시 인덱스가 `(room_id, created_at DESC)` 2컬럼뿐이라, 이 `OR` 조건과 `id` 보조 정렬을 EXPLAIN으로 확인하니 **filesort가 발생**했다 (`Sort: message.created_at DESC, message.id DESC`, 2204ms). MySQL 8.0의 로우 값 비교(`(created_at, id) < (?, ?)`)로도 시도했지만 인덱스 access 조건이 아니라 `Filter`로만 처리되어 마찬가지로 filesort가 붙었다 (648ms).
 
-**최종 선택:** `created_at` 단독으로 정렬/커서 조건을 단순화했다.
+**잘못된 결론(정정됨):** 이 시점에는 "id 타이브레이커를 추가하면 filesort가 재발한다"고 판단해, `created_at` 단독으로 정렬/커서 조건을 단순화하고 "`LocalDateTime`이 마이크로초 정밀도라 실사용에서 동시간대 커서 충돌 가능성은 무시할 수준"이라는 근거로 정확성을 포기했었다. **이 근거는 틀렸다** — Hibernate 기본 매핑에서 `LocalDateTime` → MySQL `datetime` 컬럼은 초 단위로 저장되며(실제로 `SHOW INDEX`의 `created_at` cardinality가 전체 행 수보다 작게 나옴), 실시간 채팅에서는 같은 초에 여러 메시지가 쌓이는 일이 드물지 않다. `created_at < cursor` 단독 조건은 커서와 정확히 같은 시각의 메시지를 다음 페이지에서 **영구히 누락**시킨다 — 성능을 이유로 데이터 유실을 허용한 셈이었다.
+
+**정정된 원인 분석과 해결:** filesort가 발생했던 진짜 이유는 "타이브레이커를 추가해서"가 아니라, **인덱스 자체에 `id`가 없어서** 옵티마이저가 `id` 정렬을 인덱스로 보장받지 못했기 때문이다. `idx_message_room_created`를 `(room_id, created_at DESC, id DESC)` 3컬럼으로 재구성하니, 동일한 OR 조건 쿼리가 filesort 없이 인덱스 하나로 해결된다.
+
 ```sql
-WHERE room_id = ? AND created_at < :cursor ORDER BY created_at DESC LIMIT :size
+WHERE room_id = ? AND (created_at < :cursorCreatedAt OR (created_at = :cursorCreatedAt AND id < :cursorId))
+ORDER BY created_at DESC, id DESC LIMIT :size
 ```
-`LocalDateTime`이 마이크로초 정밀도라 실사용 트래픽에서 동시간대 커서 충돌 가능성은 무시할 수준이라 판단했다 — 완벽한 이론적 정확성보다 인덱스를 온전히 활용하는 실용성을 택함.
 
-**결과 (EXPLAIN ANALYZE, room_id=42):**
+**결과 (EXPLAIN ANALYZE, room_id=42, 3컬럼 인덱스 적용 후):**
 
 | 쿼리 | 정렬 기준 | Extra | 실행 계획 |
 |---|---|---|---|
-| findFirstMessages | created_at DESC | `Using where` (filesort 없음) | `Index lookup on message using idx_message_room_created` |
-| findMessages (커서) | created_at DESC, `created_at < ?` | `Using where` (filesort 없음) | `Index range scan on message using idx_message_room_created` |
+| findFirstMessages | created_at DESC, id DESC | `Using where` (filesort 없음) | `Index lookup on message using idx_message_room_created` |
+| findMessages (키셋 커서) | created_at DESC, id DESC, OR 조건 | `Using index condition; Using where` (filesort 없음) | `Index range scan on message using idx_message_room_created` |
 
-두 쿼리 모두 별도 반복 측정(`06_measure_id_vs_created_at.sh`, room 8개 × 5회, 워밍업 포함)에서 **id 정렬 대비 중앙값 기준 약 7.9배 빠름**(1.31ms → 0.165ms)을 확인했다. API 파라미터도 `cursor: Long`(마지막 메시지 id)에서 `cursor: LocalDateTime`(마지막 메시지 createdAt, ISO-8601)으로 바뀌었다.
+키셋 커서 쿼리를 반복 측정한 결과(room 8개 × 5회, 워밍업 포함, 실제 마지막 메시지의 (created_at, id)를 커서로 사용): mean 0.532ms, median 0.236ms (n=40) — 기존 `created_at` 단독 커서(mean 0.283ms, median 0.195ms)보다 약간 느리지만 여전히 서브밀리초대이고, `id` 단독 정렬(median 1.31ms)보다는 훨씬 빠르다. OR 분기 평가 비용만큼 소폭 느려진 것으로, filesort가 다시 발생하는 것과는 근본적으로 다른 수준의 차이다. **정확성(동시각 메시지 누락 방지)을 포기하지 않고도 인덱스를 온전히 활용할 수 있었다** — API 파라미터도 `cursor: Long`(마지막 메시지 id) → `cursor: LocalDateTime`(created_at 단독) 대신, `cursorCreatedAt`(LocalDateTime) + `cursorId`(Long) 두 값으로 구성된 키셋 커서로 노출한다.
 
 ## 파일 구성
 
 - `01_seed.sql` — 더미 데이터 생성 (user 50 / room 100 / message 100만)
 - `02_measure_before.sql` — 인덱스 적용 전 `EXPLAIN` / `EXPLAIN ANALYZE` (단발성, 계획 확인용)
-- `03_apply_index.sql` — `room_id` 단일 인덱스를 `(room_id, created_at DESC)` 복합 인덱스로 교체
+- `03_apply_index.sql` — `room_id` 단일 인덱스를 `(room_id, created_at DESC, id DESC)` 복합 인덱스로 교체 (id는 (created_at, id) 키셋 커서를 filesort 없이 지원하기 위한 타이브레이커)
 - `04_measure_after.sql` — 인덱스 적용 후 `EXPLAIN` / `EXPLAIN ANALYZE` (단발성, 계획 확인용)
 - `05_measure_repeated.sh` — room 8개 × 5회 반복 측정(워밍업 포함)으로 캐시 편차를 통제한 정량 비교용 스크립트 (5절 수치의 근거)
 - `06_measure_id_vs_created_at.sh` — 복합 인덱스가 적용된 상태에서 id 정렬 vs created_at 정렬을 반복 측정으로 비교 (8절 수치의 근거)
 
-애플리케이션 엔티티(`Message.java`)에도 `@Table(indexes = ...)`로 동일한 인덱스를 정의해뒀으므로, `ddl-auto: create`로 스키마가 재생성되어도 인덱스가 유지된다.
+애플리케이션 엔티티(`Message.java`)에도 `@Table(indexes = ...)`로 동일한 인덱스를 정의해뒀다. 다만 실제 배포 설정(`application-deploy.yml`)의 `ddl-auto`는 `update`이고, 이 값은 기존 스키마를 변경하지 않으므로 엔티티에 인덱스를 정의해두는 것만으로 배포 환경에 인덱스가 자동 반영되지는 않는다. 이 벤치마크가 실제로 반영/재현되는 경로는 `03_apply_index.sql`을 수동으로 실행하는 것이며, 이 문서의 BEFORE/AFTER 측정도 그 경로로 인덱스를 넣고 뺀 상태를 기준으로 했다. (`application-local.yml`은 로컬 전용으로 `ddl-auto: create`를 쓰지만, 이는 매 기동 시 스키마를 초기화하는 로컬 개발 편의 설정일 뿐 이 벤치마크의 재현 경로와는 무관하다.)

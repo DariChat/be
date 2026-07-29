@@ -65,6 +65,10 @@ CALL seed_room_members();
 DROP PROCEDURE seed_room_members;
 
 -- ── message: 100만 건, room_id 1~100(오프셋 기준)에 분산, created_at은 과거로 흩뿌림 ──
+-- 작성자는 반드시 해당 방의 room_members 5명 중 한 명이어야 한다(MessageService.saveMessage가
+-- 강제하는 멤버십 규칙과 일치하는 데이터를 만들기 위함). room_members는 room r에
+-- base_user_id + ((r + n) % 50), n=0..4 규칙으로 배정되어 있으므로, 방을 먼저 고른 뒤
+-- 그 방의 멤버 5명 중 하나를 같은 규칙으로 골라 작성자로 삼는다.
 DROP PROCEDURE IF EXISTS seed_messages;
 DELIMITER $$
 CREATE PROCEDURE seed_messages()
@@ -85,11 +89,17 @@ BEGIN
             UUID(),
             'PUBLISHED',
             -- 최근 60일 사이로 흩뿌려서 시간 범위 쿼리도 자연스럽게 함
-            DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 60 * 24 * 60) MINUTE),
-            base_room_id + FLOOR(RAND() * 100),
-            base_user_id + FLOOR(RAND() * 50)
+            DATE_SUB(NOW(), INTERVAL FLOOR(RAND(i * batch_size + seq.n) * 60 * 24 * 60) MINUTE),
+            base_room_id + seq.picked_room_offset,
+            -- room_members 배정 규칙(base_user_id + ((r + n) % 50))과 동일하게,
+            -- 고른 방(room 번호 = picked_room_offset + 1)의 멤버 5명 중 하나를 선택.
+            -- RAND()는 같은 행 안에서 여러 번 참조되면 매번 재평가되어 값이 달라지므로
+            -- (검증됨: 파생 테이블로 감싸도 재평가됨), 전역 행 번호를 시드로 준
+            -- RAND(seed)로 결정적으로 고정한다.
+            base_user_id + ((seq.picked_room_offset + 1 + FLOOR(RAND(i * batch_size + seq.n + 1) * 5)) % 50)
         FROM (
-            SELECT (a.N + b.N * 10 + c.N * 100 + d.N * 1000) AS n
+            SELECT (a.N + b.N * 10 + c.N * 100 + d.N * 1000) AS n,
+                   FLOOR(RAND(i * batch_size + (a.N + b.N * 10 + c.N * 100 + d.N * 1000)) * 100) AS picked_room_offset
             FROM
                 (SELECT 0 N UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4
                  UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) a,

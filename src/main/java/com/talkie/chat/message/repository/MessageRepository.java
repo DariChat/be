@@ -14,17 +14,20 @@ import java.util.Optional;
 
 public interface MessageRepository extends JpaRepository<Message, Long> {
     /**
-     * 정렬/커서 기준을 created_at 단독으로 맞춰 (room_id, created_at) 복합 인덱스를
-     * filesort 없이 그대로 탄다. 처음엔 (createdAt, id) 튜플을 커서로 써서 동시간대
-     * 메시지까지 안정적으로 구분하려 했으나, MySQL이 OR/튜플 비교 조건에서는 인덱스가
-     * 보장하는 정렬 순서를 신뢰하지 못해 filesort로 되돌아가 버렸다 (id 정렬 때와
-     * 동일한 문제가 재발). LocalDateTime이 마이크로초 정밀도라 실사용에서 동시간대
-     * 충돌 가능성은 무시할 수준이라 판단해 created_at 단독 커서로 단순화했다.
+     * (created_at, id) 키셋 커서. created_at 단독 커서는 동일 시각(특히 초 단위로
+     * 저장되는 datetime 컬럼)에 걸친 메시지를 다음 페이지에서 영구히 누락시킬 수 있어,
+     * id를 타이브레이커로 추가했다. idx_message_room_created 인덱스에 id를 3번째
+     * 컬럼으로 포함시켜, OR로 전개한 조건에서도 인덱스 정렬을 그대로 활용하도록 한다.
      */
     @Query("SELECT m FROM Message m JOIN FETCH m.user WHERE m.room.id = :roomId AND m.deletedAt IS NULL " +
-            "AND m.createdAt < :cursor ORDER BY m.createdAt DESC LIMIT :size")
-    List<Message> findMessages(@Param("roomId") Long roomId, @Param("cursor") LocalDateTime cursor, @Param("size") int size);
-    @Query("SELECT m FROM Message m JOIN FETCH m.user WHERE m.room.id = :roomId AND m.deletedAt IS NULL ORDER BY m.createdAt DESC LIMIT :size")
+            "AND (m.createdAt < :cursorCreatedAt OR (m.createdAt = :cursorCreatedAt AND m.id < :cursorId)) " +
+            "ORDER BY m.createdAt DESC, m.id DESC LIMIT :size")
+    List<Message> findMessages(@Param("roomId") Long roomId,
+                                @Param("cursorCreatedAt") LocalDateTime cursorCreatedAt,
+                                @Param("cursorId") Long cursorId,
+                                @Param("size") int size);
+    @Query("SELECT m FROM Message m JOIN FETCH m.user WHERE m.room.id = :roomId AND m.deletedAt IS NULL " +
+            "ORDER BY m.createdAt DESC, m.id DESC LIMIT :size")
     List<Message> findFirstMessages(@Param("roomId") Long roomId, @Param("size") int size);
     @Query("SELECT m.id FROM Message m WHERE m.room.id = :roomId AND m.deletedAt IS NULL ORDER BY m.createdAt DESC LIMIT 1")
     Optional<Long> findLatestMessageIdByRoomId(@Param("roomId") Long roomId);
