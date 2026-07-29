@@ -7,16 +7,29 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 public interface MessageRepository extends JpaRepository<Message, Long> {
-    @Query("SELECT m FROM Message m JOIN FETCH m.user WHERE m.room.id = :roomId AND m.id < :cursor AND m.deletedAt IS NULL ORDER BY m.id DESC LIMIT :size")
-    List<Message> findMessages(@Param("roomId") Long roomId, @Param("cursor") Long cursor, @Param("size") int size);
-    @Query("SELECT m FROM Message m JOIN FETCH m.user WHERE m.room.id = :roomId AND m.deletedAt IS NULL ORDER BY m.id DESC LIMIT :size")
+    /**
+     * (created_at, id) 키셋 커서. created_at 단독 커서는 동일 시각(특히 초 단위로
+     * 저장되는 datetime 컬럼)에 걸친 메시지를 다음 페이지에서 영구히 누락시킬 수 있어,
+     * id를 타이브레이커로 추가했다. idx_message_room_created 인덱스에 id를 3번째
+     * 컬럼으로 포함시켜, OR로 전개한 조건에서도 인덱스 정렬을 그대로 활용하도록 한다.
+     */
+    @Query("SELECT m FROM Message m JOIN FETCH m.user WHERE m.room.id = :roomId AND m.deletedAt IS NULL " +
+            "AND (m.createdAt < :cursorCreatedAt OR (m.createdAt = :cursorCreatedAt AND m.id < :cursorId)) " +
+            "ORDER BY m.createdAt DESC, m.id DESC LIMIT :size")
+    List<Message> findMessages(@Param("roomId") Long roomId,
+                                @Param("cursorCreatedAt") LocalDateTime cursorCreatedAt,
+                                @Param("cursorId") Long cursorId,
+                                @Param("size") int size);
+    @Query("SELECT m FROM Message m JOIN FETCH m.user WHERE m.room.id = :roomId AND m.deletedAt IS NULL " +
+            "ORDER BY m.createdAt DESC, m.id DESC LIMIT :size")
     List<Message> findFirstMessages(@Param("roomId") Long roomId, @Param("size") int size);
-    @Query("SELECT m.id FROM Message m WHERE m.room.id = :roomId AND m.deletedAt IS NULL ORDER BY m.id DESC LIMIT 1")
+    @Query("SELECT m.id FROM Message m WHERE m.room.id = :roomId AND m.deletedAt IS NULL ORDER BY m.createdAt DESC LIMIT 1")
     Optional<Long> findLatestMessageIdByRoomId(@Param("roomId") Long roomId);
     Optional<Message> findByClientMessageId(String clientMessageId);
 
