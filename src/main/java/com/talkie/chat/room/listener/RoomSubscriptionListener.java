@@ -1,6 +1,5 @@
 package com.talkie.chat.room.listener;
 
-import com.talkie.chat.global.config.AsyncConfig;
 import com.talkie.chat.message.event.MessageBroadcastedEvent;
 import com.talkie.chat.room.service.RoomService;
 import lombok.RequiredArgsConstructor;
@@ -101,7 +100,7 @@ public class RoomSubscriptionListener {
         subscriptions.values().forEach(roomId -> removeSubscriber(roomId, userId));
     }
 
-    @Async(AsyncConfig.READ_STATUS_EXECUTOR)
+    @Async
     @EventListener
     public void handleMessageBroadcasted(MessageBroadcastedEvent event) {
         Set<Long> subscriberIds = getSubscriberIds(event.roomId());
