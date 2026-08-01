@@ -3,24 +3,23 @@ package com.talkie.chat.message.controller;
 import com.talkie.chat.global.exception.BusinessException;
 import com.talkie.chat.global.exception.CommonErrorCode;
 import com.talkie.chat.global.exception.ErrorResponse;
-import com.talkie.chat.global.redis.ChatMessage;
-import com.talkie.chat.global.redis.RedisPublisher;
 import com.talkie.chat.message.dto.ChatMessageRequest;
 import com.talkie.chat.message.dto.MessageResponse;
 import com.talkie.chat.message.enums.PublishStatus;
+import com.talkie.chat.message.event.MessageBroadcastedEvent;
 import com.talkie.chat.message.exception.MessageErrorCode;
 import com.talkie.chat.message.service.MessageService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.listener.ChannelTopic;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageExceptionHandler;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.handler.annotation.support.MethodArgumentNotValidException;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.stereotype.Controller;
-import tools.jackson.databind.ObjectMapper;
 
 import java.security.Principal;
 
@@ -28,9 +27,8 @@ import java.security.Principal;
 @RequiredArgsConstructor
 public class ChatController {
 
-    private final RedisPublisher redisPublisher;
-    private final ObjectMapper objectMapper;
-    private final ChannelTopic channelTopic;
+    private final SimpMessagingTemplate messagingTemplate;
+    private final ApplicationEventPublisher eventPublisher;
     private final MessageService messageService;
 
     @MessageMapping("/rooms/{roomId}/send")
@@ -42,24 +40,15 @@ public class ChatController {
             return;
         }
 
-        ChatMessage chatMessage = new ChatMessage(roomId, messageResponse);
-
-        String json;
         try {
-            json = objectMapper.writeValueAsString(chatMessage);
-        } catch (Exception e) {
-            messageService.markPublishFailed(messageResponse.id());
-            throw new BusinessException(MessageErrorCode.SERIALIZATION_FAILED, e);
-        }
-
-        try {
-            redisPublisher.publish(channelTopic, json);
+            messagingTemplate.convertAndSend("/sub/rooms/" + roomId, messageResponse);
         } catch (Exception e) {
             messageService.markPublishFailed(messageResponse.id());
             throw new BusinessException(MessageErrorCode.PUBLISH_FAILED, e);
         }
 
         messageService.markPublished(messageResponse.id());
+        eventPublisher.publishEvent(new MessageBroadcastedEvent(roomId, messageResponse.id()));
     }
 
     @MessageExceptionHandler(BusinessException.class)

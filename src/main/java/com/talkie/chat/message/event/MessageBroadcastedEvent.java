@@ -1,4 +1,4 @@
-package com.talkie.chat.global.redis;
+package com.talkie.chat.message.event;
 
 public record MessageBroadcastedEvent(
         Long roomId,
