@@ -45,7 +45,7 @@ public class RoomService {
                 .orElseThrow(() -> new BusinessException(RoomErrorCode.USER_NOT_FOUND));
 
         if (roomType == RoomType.GROUP) {
-            if (roomName == null) {
+            if (roomName == null || roomName.isBlank()) {
                 throw new BusinessException(RoomErrorCode.ROOM_NAME_REQUIRED);
             }
         } else {
