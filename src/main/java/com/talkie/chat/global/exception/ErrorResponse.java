@@ -1,17 +1,20 @@
 package com.talkie.chat.global.exception;
 
-import java.time.LocalDateTime;
-
 public record ErrorResponse(
-        String code,
-        String message,
-        LocalDateTime timestamp
+        boolean success,
+        ErrorDetail error
 ) {
+    public record ErrorDetail(
+            String code,
+            String message
+    ) {
+    }
+
     public static ErrorResponse from(ErrorCode errorCode) {
-        return new ErrorResponse(errorCode.getCode(), errorCode.getMessage(), LocalDateTime.now());
+        return new ErrorResponse(false, new ErrorDetail(errorCode.getCode(), errorCode.getMessage()));
     }
 
     public static ErrorResponse of(ErrorCode errorCode, String message) {
-        return new ErrorResponse(errorCode.getCode(), message, LocalDateTime.now());
+        return new ErrorResponse(false, new ErrorDetail(errorCode.getCode(), message));
     }
 }
