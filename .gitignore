@@ -37,6 +37,7 @@ application-secret.properties
 
 # Personal notes
 TIL.md
+DESIGN_NOTES.md
 
 # Compiled class files
 *.class

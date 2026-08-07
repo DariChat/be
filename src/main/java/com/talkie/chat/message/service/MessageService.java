@@ -1,11 +1,19 @@
 package com.talkie.chat.message.service;
 
+import com.talkie.chat.global.exception.BusinessException;
+import com.talkie.chat.message.dto.MessageCursor;
 import com.talkie.chat.message.dto.MessageResponse;
 import com.talkie.chat.message.entity.Message;
+import com.talkie.chat.message.exception.MessageErrorCode;
 import com.talkie.chat.message.repository.MessageRepository;
 import com.talkie.chat.room.entity.RoomMember;
 import com.talkie.chat.room.repository.RoomMemberRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Recover;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,29 +24,68 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class MessageService {
 
+    private static final Logger log = LoggerFactory.getLogger(MessageService.class);
+
     private final MessageRepository messageRepository;
     private final RoomMemberRepository roomMemberRepository;
 
     @Transactional
-    public MessageResponse saveMessage(Long userId, Long roomId, String content) {
-        RoomMember roomMember = roomMemberRepository.findByUserIdAndRoomId(userId, roomId)
-                .orElseThrow(() -> new IllegalArgumentException("채팅방 멤버가 아닙니다."));
+    public MessageResponse saveMessage(Long userId, Long roomId, String content, String clientMessageId) {
+        if (!roomMemberRepository.existsByUserIdAndRoomId(userId, roomId)) {
+            throw new BusinessException(MessageErrorCode.NOT_ROOM_MEMBER);
+        }
 
-        Message message = new Message(content, roomMember.getUser(), roomMember.getRoom());
+        return messageRepository.findByClientMessageId(clientMessageId)
+                .map(existing -> toResponseIfOwnedBy(existing, userId, roomId))
+                .orElseGet(() -> persistNewMessage(userId, roomId, content, clientMessageId));
+    }
+
+    private MessageResponse toResponseIfOwnedBy(Message existing, Long userId, Long roomId) {
+        if (!existing.getUser().getId().equals(userId) || !existing.getRoom().getId().equals(roomId)) {
+            throw new BusinessException(MessageErrorCode.CLIENT_MESSAGE_ID_CONFLICT);
+        }
+        return MessageResponse.from(existing);
+    }
+
+    private MessageResponse persistNewMessage(Long userId, Long roomId, String content, String clientMessageId) {
+        RoomMember roomMember = roomMemberRepository.findByUserIdAndRoomId(userId, roomId)
+                .orElseThrow(() -> new BusinessException(MessageErrorCode.NOT_ROOM_MEMBER));
+
+        Message message = new Message(content, clientMessageId, roomMember.getUser(), roomMember.getRoom());
         Message savedMessage = messageRepository.save(message);
+        roomMemberRepository.updateLastReadMessageIdIfGreater(userId, roomId, savedMessage.getId());
         return MessageResponse.from(savedMessage);
     }
 
-    public List<MessageResponse> findMessagesByRoomId(Long userId, Long roomId, Long cursor, int size) {
+    @Transactional
+    @Retryable(retryFor = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 200, multiplier = 2))
+    public void markPublished(Long messageId) {
+        messageRepository.findById(messageId).ifPresent(Message::markPublished);
+    }
+
+    @Recover
+    @Transactional
+    public void recoverMarkPublished(Exception e, Long messageId) {
+        log.error("발행은 성공했으나 publishStatus=PUBLISHED 기록에 재시도 후에도 실패했습니다. " +
+                "FAILED로 기록해 다음 재시도가 다시 발행을 시도할 수 있게 합니다. messageId={}", messageId, e);
+        messageRepository.findById(messageId).ifPresent(Message::markPublishFailed);
+    }
+
+    @Transactional
+    public void markPublishFailed(Long messageId) {
+        messageRepository.findById(messageId).ifPresent(Message::markPublishFailed);
+    }
+
+    public List<MessageResponse> findMessagesByRoomId(Long userId, Long roomId, MessageCursor cursor, int size) {
         if (!roomMemberRepository.existsByUserIdAndRoomId(userId, roomId)) {
-            throw new IllegalArgumentException("채팅방 멤버가 아닙니다.");
+            throw new BusinessException(MessageErrorCode.NOT_ROOM_MEMBER);
         }
 
         List<Message> findMessages;
         if (cursor == null) {
             findMessages = messageRepository.findFirstMessages(roomId, size);
         } else {
-            findMessages = messageRepository.findMessages(roomId, cursor, size);
+            findMessages = messageRepository.findMessages(roomId, cursor.createdAt(), cursor.id(), size);
         }
 
         return findMessages.stream()

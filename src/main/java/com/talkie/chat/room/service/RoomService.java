@@ -1,10 +1,15 @@
 package com.talkie.chat.room.service;
 
+import com.talkie.chat.global.exception.BusinessException;
+import com.talkie.chat.message.entity.Message;
+import com.talkie.chat.message.repository.MessageRepository;
 import com.talkie.chat.room.dto.RoomResponse;
+import com.talkie.chat.room.dto.RoomSummaryResponse;
 import com.talkie.chat.room.entity.Room;
 import com.talkie.chat.room.entity.RoomMember;
 import com.talkie.chat.room.enums.Role;
 import com.talkie.chat.room.enums.RoomType;
+import com.talkie.chat.room.exception.RoomErrorCode;
 import com.talkie.chat.room.repository.RoomMemberRepository;
 import com.talkie.chat.room.repository.RoomRepository;
 import com.talkie.chat.user.entity.User;
@@ -15,7 +20,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -25,20 +33,25 @@ public class RoomService {
     private final RoomRepository roomRepository;
     private final RoomMemberRepository roomMemberRepository;
     private final UserRepository userRepository;
+    private final MessageRepository messageRepository;
 
     @Transactional
     public RoomResponse createRoom(Long userId, String roomName, RoomType roomType, List<Long> memberIds) {
+        if (memberIds == null || memberIds.isEmpty()) {
+            throw new BusinessException(RoomErrorCode.MEMBER_IDS_REQUIRED);
+        }
+
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("없는 유저입니다."));
+                .orElseThrow(() -> new BusinessException(RoomErrorCode.USER_NOT_FOUND));
 
         if (roomType == RoomType.GROUP) {
-            if (roomName == null) {
-                throw new IllegalArgumentException("그룹 채팅은 방 이름이 필수입니다.");
+            if (roomName == null || roomName.isBlank()) {
+                throw new BusinessException(RoomErrorCode.ROOM_NAME_REQUIRED);
             }
         } else {
             if (roomName == null) {
                 User inviteUser = userRepository.findById(memberIds.get(0))
-                        .orElseThrow(() -> new IllegalArgumentException("없는 유저입니다."));
+                        .orElseThrow(() -> new BusinessException(RoomErrorCode.USER_NOT_FOUND));
                 roomName = inviteUser.getNickname();
             }
         }
@@ -51,7 +64,7 @@ public class RoomService {
         List<Long> requestIds = memberIds.stream().distinct().toList();
         List<User> members = userRepository.findAllById(requestIds);
         if (members.size() != requestIds.size()) {
-            throw new IllegalArgumentException("존재하지 않는 초대 대상이 있습니다.");
+            throw new BusinessException(RoomErrorCode.INVITEE_NOT_FOUND);
         }
 
         List<RoomMember> roomMembers = new ArrayList<>();
@@ -65,18 +78,59 @@ public class RoomService {
         return RoomResponse.from(createdRoom, roomMembers.size() + 1);
     }
 
-    public List<RoomResponse> getMyRooms(Long userId) {
-        return roomMemberRepository.findRoomsWithMemberCountByUserId(userId)
-                .stream()
-                .map(row -> new RoomResponse((Long) row[0], (String) row[1], (RoomType) row[2], ((Long) row[3]).intValue()))
+    public List<RoomSummaryResponse> getMyRooms(Long userId) {
+        List<RoomMember> myRoomMembers = roomMemberRepository.findByUserId(userId);
+        if (myRoomMembers.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> roomIds = myRoomMembers.stream().map(rm -> rm.getRoom().getId()).toList();
+        Map<Long, Long> memberCountByRoomId = roomMemberRepository.countMembersByRoomIdIn(roomIds).stream()
+                .collect(Collectors.toMap(row -> (Long) row[0], row -> (Long) row[1]));
+
+        return myRoomMembers.stream()
+                .map(rm -> toSummary(rm, memberCountByRoomId.getOrDefault(rm.getRoom().getId(), 0L)))
                 .toList();
+    }
+
+    private RoomSummaryResponse toSummary(RoomMember myRoomMember, long memberCount) {
+        Long roomId = myRoomMember.getRoom().getId();
+        Optional<Message> lastMessage = messageRepository.findFirstMessages(roomId, 1).stream().findFirst();
+        long unreadCount = messageRepository.countUnread(roomId, myRoomMember.getLastReadMessageId());
+
+        return new RoomSummaryResponse(
+                roomId,
+                myRoomMember.getRoom().getRoomName(),
+                lastMessage.map(Message::getContent).orElse(null),
+                lastMessage.map(Message::getCreatedAt).orElse(null),
+                (int) memberCount,
+                (int) unreadCount
+        );
+    }
+
+    @Transactional
+    public void markAsRead(Long userId, Long roomId) {
+        if (!roomMemberRepository.existsByUserIdAndRoomId(userId, roomId)) {
+            throw new BusinessException(RoomErrorCode.NOT_ROOM_MEMBER);
+        }
+
+        messageRepository.findLatestMessageIdByRoomId(roomId)
+                .ifPresent(messageId -> roomMemberRepository.updateLastReadMessageIdIfGreater(userId, roomId, messageId));
+    }
+
+    @Transactional
+    public void markAsRead(Set<Long> userIds, Long roomId, Long messageId) {
+        if (userIds.isEmpty()) {
+            return;
+        }
+        roomMemberRepository.updateLastReadMessageIdIfGreater(userIds, roomId, messageId);
     }
 
     @Transactional
     public void leaveRoom(Long userId, Long roomId) {
         Room room = findByRoomId(roomId);
         RoomMember roomMember = roomMemberRepository.findByUserIdAndRoomId(userId, room.getId())
-                .orElseThrow(() -> new IllegalArgumentException("해당 방의 회원이 아닙니다."));
+                .orElseThrow(() -> new BusinessException(RoomErrorCode.NOT_ROOM_MEMBER));
 
         if (roomMember.getRole() == Role.OWNER) {
             Optional<RoomMember> nextOwner = roomMemberRepository.findOldestMemberByRoomId(roomId);
@@ -88,8 +142,9 @@ public class RoomService {
         }
         roomMemberRepository.delete(roomMember);
     }
+
     private Room findByRoomId(Long roomId) {
         return roomRepository.findById(roomId)
-                .orElseThrow(() -> new IllegalArgumentException("방을 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(RoomErrorCode.ROOM_NOT_FOUND));
     }
 }

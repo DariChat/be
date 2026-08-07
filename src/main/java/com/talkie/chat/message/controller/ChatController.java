@@ -1,21 +1,25 @@
 package com.talkie.chat.message.controller;
 
-import com.talkie.chat.global.redis.ChatMessage;
-import com.talkie.chat.global.redis.RedisPublisher;
+import com.talkie.chat.global.exception.BusinessException;
+import com.talkie.chat.global.exception.CommonErrorCode;
+import com.talkie.chat.global.exception.ErrorResponse;
 import com.talkie.chat.message.dto.ChatMessageRequest;
 import com.talkie.chat.message.dto.MessageResponse;
+import com.talkie.chat.message.enums.PublishStatus;
+import com.talkie.chat.message.event.MessageBroadcastedEvent;
+import com.talkie.chat.message.exception.MessageErrorCode;
 import com.talkie.chat.message.service.MessageService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.listener.ChannelTopic;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageExceptionHandler;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.handler.annotation.support.MethodArgumentNotValidException;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.stereotype.Controller;
-import tools.jackson.databind.ObjectMapper;
 
 import java.security.Principal;
 
@@ -23,41 +27,43 @@ import java.security.Principal;
 @RequiredArgsConstructor
 public class ChatController {
 
-    private final RedisPublisher redisPublisher;
-    private final ObjectMapper objectMapper;
-    private final ChannelTopic channelTopic;
+    private final SimpMessagingTemplate messagingTemplate;
+    private final ApplicationEventPublisher eventPublisher;
     private final MessageService messageService;
 
     @MessageMapping("/rooms/{roomId}/send")
     public void sendMessage(@DestinationVariable Long roomId, @Valid @Payload ChatMessageRequest request, Principal principal) {
         Long userId = Long.parseLong(principal.getName());
-        MessageResponse messageResponse = messageService.saveMessage(userId, roomId, request.content());
-        ChatMessage chatMessage = new ChatMessage(roomId, messageResponse);
+        MessageResponse messageResponse = messageService.saveMessage(userId, roomId, request.content(), request.clientMessageId());
 
-        String json;
-        try {
-            json = objectMapper.writeValueAsString(chatMessage);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("메시지 직렬화 실패", e);
+        if (messageResponse.publishStatus() == PublishStatus.PUBLISHED) {
+            return;
         }
 
-        // TODO: publish 실패 시 재시도/보정 전략 필요 (DB 저장은 완료된 상태)
         try {
-            redisPublisher.publish(channelTopic, json);
+            messagingTemplate.convertAndSend("/sub/rooms/" + roomId, messageResponse);
         } catch (Exception e) {
-            throw new IllegalArgumentException("메시지 발행 실패", e);
+            messageService.markPublishFailed(messageResponse.id());
+            throw new BusinessException(MessageErrorCode.PUBLISH_FAILED, e);
         }
+
+        messageService.markPublished(messageResponse.id());
+        eventPublisher.publishEvent(new MessageBroadcastedEvent(roomId, messageResponse.id()));
     }
 
-    @MessageExceptionHandler(IllegalArgumentException.class)
+    @MessageExceptionHandler(BusinessException.class)
     @SendToUser("/queue/errors")
-    public String handleException(IllegalArgumentException e) {
-        return e.getMessage();
+    public ErrorResponse handleException(BusinessException e) {
+        return ErrorResponse.from(e.getErrorCode());
     }
 
     @MessageExceptionHandler(MethodArgumentNotValidException.class)
     @SendToUser("/queue/errors")
-    public String handleValidationException(MethodArgumentNotValidException e) {
-        return "입력값이 올바르지 않습니다.";
+    public ErrorResponse handleValidationException(MethodArgumentNotValidException e) {
+        String message = e.getBindingResult().getFieldErrors().stream()
+                .findFirst()
+                .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                .orElse(CommonErrorCode.INVALID_INPUT.getMessage());
+        return ErrorResponse.of(CommonErrorCode.INVALID_INPUT, message);
     }
 }
