@@ -248,7 +248,7 @@ class ChatWebSocketIntegrationTest {
             // error.code()가 MessageErrorCode.NOT_ROOM_MEMBER의 code와 일치하는지
             ErrorResponse error = (ErrorResponse) errorHandler.awaitPayload(3, TimeUnit.SECONDS);
             assertThat(error).isNotNull();
-            assertThat(error.code()).isEqualTo(MessageErrorCode.NOT_ROOM_MEMBER.getCode());
+            assertThat(error.error().code()).isEqualTo(MessageErrorCode.NOT_ROOM_MEMBER.getCode());
         }
 
         @Test
@@ -265,7 +265,7 @@ class ChatWebSocketIntegrationTest {
             // TODO: then - errorHandler로 검증 실패 ErrorResponse가 도착하는지
             ErrorResponse error = (ErrorResponse) errorHandler.awaitPayload(3, TimeUnit.SECONDS);
             assertThat(error).isNotNull();
-            assertThat(error.code()).isEqualTo(CommonErrorCode.INVALID_INPUT.getCode());
+            assertThat(error.error().code()).isEqualTo(CommonErrorCode.INVALID_INPUT.getCode());
         }
 
         @Test
@@ -311,7 +311,7 @@ class ChatWebSocketIntegrationTest {
             // ErrorResponse가 도착하는지
             ErrorResponse error = (ErrorResponse) errorHandler.awaitPayload(3, TimeUnit.SECONDS);
             assertThat(error).isNotNull();
-            assertThat(error.code()).isEqualTo(MessageErrorCode.CLIENT_MESSAGE_ID_CONFLICT.getCode());
+            assertThat(error.error().code()).isEqualTo(MessageErrorCode.CLIENT_MESSAGE_ID_CONFLICT.getCode());
         }
     }
 }
