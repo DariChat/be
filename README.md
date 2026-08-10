@@ -1,14 +1,19 @@
 # Talkie
 
-실시간 채팅 서비스. WebSocket(STOMP)을 기반으로 1:1 및 그룹 채팅, 읽음 처리, 메시지 커서 페이지네이션을 지원한다.
+실시간 채팅 번역 서비스입니다. 서로 다른 언어를 쓰는 사용자끼리 WebSocket(STOMP) 기반으로 실시간 대화할 수 있도록 하는 것을 목표로 하며, 현재는 그 기반이 되는 1:1/그룹 채팅, 읽음 처리, 메시지 커서 페이지네이션까지 구현되어 있습니다.
 
 ## 기능
 
-- **인증**: 이메일/비밀번호 회원가입, JWT 기반 로그인 (AccessToken + RefreshToken), 토큰 재발급, 로그아웃
-- **프로필**: 내 정보 조회, 닉네임/프로필 이미지 수정, 비밀번호 변경
-- **채팅방**: 1:1(DIRECT) / 그룹(GROUP) 채팅방 생성, 내 채팅방 목록 조회(마지막 메시지·안읽은 수 포함), 퇴장(방장 위임 및 마지막 인원 퇴장 시 자동 삭제)
-- **메시지**: STOMP를 통한 실시간 송수신, `clientMessageId` 기반 멱등 발행(중복 전송/재전송 방지), 커서 기반 페이지네이션 조회
-- **읽음 처리**: 방 구독/구독 해제 시점 기준 읽음 처리, 실시간 안읽은 메시지 수 반영
+- **인증**: 이메일/비밀번호 회원가입, JWT 기반 로그인 (AccessToken + RefreshToken), 토큰 재발급, 로그아웃을 지원합니다
+- **프로필**: 내 정보 조회, 닉네임/프로필 이미지 수정, 비밀번호 변경을 지원합니다
+- **채팅방**: 1:1(DIRECT) / 그룹(GROUP) 채팅방 생성, 내 채팅방 목록 조회(마지막 메시지·안읽은 수 포함), 퇴장(방장 위임 및 마지막 인원 퇴장 시 자동 삭제)을 지원합니다
+- **메시지**: STOMP를 통한 실시간 송수신, `clientMessageId` 기반 멱등 발행(중복 전송/재전송 방지), 커서 기반 페이지네이션 조회를 지원합니다
+- **읽음 처리**: 방 구독/구독 해제 시점 기준 읽음 처리, 실시간 안읽은 메시지 수 반영을 지원합니다
+
+## 로드맵
+
+- **실시간 메시지 번역**: 발신자와 수신자의 언어 설정이 다를 경우, 메시지를 상대방 언어로 자동 번역해 전달합니다
+- **사용자별 언어 설정**: 프로필에 선호 언어를 지정하고, 채팅방 내에서 원문/번역문을 함께 표시합니다
 
 ## 기술 스택
 
@@ -37,10 +42,10 @@
         └───────────┘       └───────────┘
 ```
 
-- REST API는 `/api/**`, WebSocket 핸드셰이크는 `/ws-talkie`로 노출된다.
-- STOMP 메시지는 `/pub/**`(클라이언트 발행) / `/sub/**`, `/queue/**`(서버 브로드캐스트)로 라우팅된다.
-- 인증은 REST에서 `JwtAuthFilter`, STOMP CONNECT 프레임에서 `StompChannelInterceptor`가 각각 JWT를 검증한다.
-- Redis는 RefreshToken 저장소로 사용한다. 단일 인스턴스로 운영하므로 메시지 브로드캐스트는 STOMP로 직접 전송하며 별도의 pub/sub 계층을 두지 않는다(설계 배경은 `DESIGN_NOTES.md` 참고). 이후 인스턴스를 여러 대로 확장할 경우 Redis pub/sub 또는 STOMP 브로커 릴레이 재도입이 필요하다.
+- REST API는 `/api/**`, WebSocket 핸드셰이크는 `/ws-talkie`로 노출됩니다.
+- STOMP 메시지는 `/pub/**`(클라이언트 발행) / `/sub/**`, `/queue/**`(서버 브로드캐스트)로 라우팅됩니다.
+- 인증은 REST에서 `JwtAuthFilter`, STOMP CONNECT 프레임에서 `StompChannelInterceptor`가 각각 JWT를 검증합니다.
+- Redis는 RefreshToken 저장소로 사용합니다. 단일 인스턴스로 운영하므로 메시지 브로드캐스트는 STOMP로 직접 전송하며 별도의 pub/sub 계층을 두지 않습니다(설계 배경은 `DESIGN_NOTES.md` 참고). 이후 인스턴스를 여러 대로 확장할 경우 Redis pub/sub 또는 STOMP 브로커 릴레이 재도입이 필요합니다.
 
 ## 패키지 구조
 
@@ -71,7 +76,7 @@ com.talkie.chat
 | DELETE | `/api/rooms/{id}/leave` | 채팅방 퇴장 |
 | GET | `/api/rooms/{roomId}/messages` | 메시지 커서 조회 |
 
-응답은 `{ "success": true, "data": ... }` / `{ "success": false, "error": { "code", "message" } }` 형태로 통일되어 있다.
+응답은 `{ "success": true, "data": ... }` / `{ "success": false, "error": { "code", "message" } }` 형태로 통일되어 있습니다.
 
 ### WebSocket / STOMP
 
@@ -82,7 +87,7 @@ com.talkie.chat
 | 구독 | `/sub/rooms/{roomId}` | 방 메시지 수신 |
 | 구독 | `/user/queue/errors` | 개인 에러 응답 수신 |
 
-전체 API 스펙은 서버 기동 후 `/swagger-ui/index.html`에서 확인할 수 있다.
+전체 API 스펙은 서버 기동 후 `/swagger-ui/index.html`에서 확인할 수 있습니다.
 
 ## 로컬 실행
 
@@ -110,11 +115,11 @@ JWT_SECRET=... DB_USERNAME=... DB_PASSWORD=... SPRING_PROFILES_ACTIVE=local ./gr
 docker-compose up -d --build
 ```
 
-`app` 컨테이너가 80번 포트로 직접 노출된다.
+`app` 컨테이너가 80번 포트로 직접 노출됩니다.
 
 ## 부하 테스트
 
-`scripts/k6/chat_load_test.js`로 STOMP 채팅 부하 테스트를 수행할 수 있다.
+`scripts/k6/chat_load_test.js`로 STOMP 채팅 부하 테스트를 수행할 수 있습니다.
 
 ## 문서
 
