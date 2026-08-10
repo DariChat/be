@@ -64,7 +64,7 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_KEY }}
           port: ${{ secrets.EC2_PORT }}
-          source: "docker-compose.yml,.env,build/libs/*.jar,Dockerfile"
+          source: "docker-compose.yml,.env,build/libs/*.jar,Dockerfile,nginx/nginx.conf"
           target: "/home/ec2-user/talkie"
 
       - name: Deploy on EC2
