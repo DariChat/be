@@ -1,13 +1,18 @@
 package com.talkie.chat.message.service;
 
 import com.talkie.chat.global.exception.BusinessException;
+import com.talkie.chat.message.client.RetryableTranslationClient;
 import com.talkie.chat.message.dto.MessageCursor;
 import com.talkie.chat.message.dto.MessageResponse;
 import com.talkie.chat.message.entity.Message;
+import com.talkie.chat.message.entity.MessageTranslation;
 import com.talkie.chat.message.exception.MessageErrorCode;
+import com.talkie.chat.message.exception.TranslationException;
 import com.talkie.chat.message.repository.MessageRepository;
+import com.talkie.chat.message.repository.MessageTranslationRepository;
 import com.talkie.chat.room.entity.RoomMember;
 import com.talkie.chat.room.repository.RoomMemberRepository;
+import com.talkie.chat.user.enums.PreferredLanguage;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,6 +23,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +37,8 @@ public class MessageService {
 
     private final MessageRepository messageRepository;
     private final RoomMemberRepository roomMemberRepository;
+    private final MessageTranslationRepository messageTranslationRepository;
+    private final RetryableTranslationClient retryableTranslationClient;
 
     @Transactional
     public MessageResponse saveMessage(Long userId, Long roomId, String content, String clientMessageId) {
@@ -44,7 +55,8 @@ public class MessageService {
         if (!existing.getUser().getId().equals(userId) || !existing.getRoom().getId().equals(roomId)) {
             throw new BusinessException(MessageErrorCode.CLIENT_MESSAGE_ID_CONFLICT);
         }
-        return MessageResponse.from(existing);
+        List<MessageTranslation> translations = messageTranslationRepository.findByMessageId(existing.getId());
+        return MessageResponse.from(existing, translations);
     }
 
     private MessageResponse persistNewMessage(Long userId, Long roomId, String content, String clientMessageId) {
@@ -54,7 +66,33 @@ public class MessageService {
         Message message = new Message(content, clientMessageId, roomMember.getUser(), roomMember.getRoom());
         Message savedMessage = messageRepository.save(message);
         roomMemberRepository.updateLastReadMessageIdIfGreater(userId, roomId, savedMessage.getId());
-        return MessageResponse.from(savedMessage);
+
+        List<MessageTranslation> translations = translateForRoomMembers(savedMessage, roomId, roomMember.getUser().getPreferredLanguage());
+        return MessageResponse.from(savedMessage, translations);
+    }
+
+    private List<MessageTranslation> translateForRoomMembers(Message message, Long roomId, PreferredLanguage senderLanguage) {
+        Set<PreferredLanguage> targetLanguages = roomMemberRepository.findByRoomId(roomId).stream()
+                .map(rm -> rm.getUser().getPreferredLanguage())
+                .filter(language -> language != senderLanguage)
+                .collect(Collectors.toSet());
+
+        List<MessageTranslation> translations = targetLanguages.stream()
+                .map(language -> translateOrNull(message, language))
+                .filter(Objects::nonNull)
+                .toList();
+
+        return messageTranslationRepository.saveAll(translations);
+    }
+
+    private MessageTranslation translateOrNull(Message message, PreferredLanguage targetLanguage) {
+        try {
+            String translatedContent = retryableTranslationClient.translate(message.getContent(), targetLanguage);
+            return new MessageTranslation(message, targetLanguage, translatedContent);
+        } catch (TranslationException e) {
+            log.error("번역 실패로 원문만 전달합니다. messageId={}, targetLanguage={}", message.getId(), targetLanguage, e);
+            return null;
+        }
     }
 
     @Transactional
@@ -88,8 +126,12 @@ public class MessageService {
             findMessages = messageRepository.findMessages(roomId, cursor.createdAt(), cursor.id(), size);
         }
 
+        List<Long> messageIds = findMessages.stream().map(Message::getId).toList();
+        Map<Long, List<MessageTranslation>> translationsByMessageId = messageTranslationRepository.findByMessageIdIn(messageIds).stream()
+                .collect(Collectors.groupingBy(mt -> mt.getMessage().getId()));
+
         return findMessages.stream()
-                .map(MessageResponse::from)
+                .map(message -> MessageResponse.from(message, translationsByMessageId.getOrDefault(message.getId(), List.of())))
                 .toList();
     }
 }

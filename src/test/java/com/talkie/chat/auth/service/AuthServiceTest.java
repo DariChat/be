@@ -9,6 +9,7 @@ import com.talkie.chat.global.exception.BusinessException;
 import com.talkie.chat.global.jwt.JwtProvider;
 import com.talkie.chat.user.dto.UserResponse;
 import com.talkie.chat.user.entity.User;
+import com.talkie.chat.user.enums.PreferredLanguage;
 import com.talkie.chat.user.exception.UserErrorCode;
 import com.talkie.chat.user.repository.UserRepository;
 import org.jspecify.annotations.Nullable;
@@ -62,7 +63,7 @@ class AuthServiceTest {
         void signup_duplicateEmail() {
             // TODO: given-when-then
             SignupRequest signupRequest =
-                    new SignupRequest("KimMinsu", "test01@gmail.com", "password12", "test01");
+                    new SignupRequest("KimMinsu", "test01@gmail.com", "password12", "test01", PreferredLanguage.KO);
             when(userRepository.existsByEmail(signupRequest.email())).thenReturn(true);
 
             BusinessException exception = assertThrows(BusinessException.class, () -> authService.signup(signupRequest));
@@ -74,7 +75,7 @@ class AuthServiceTest {
         void signup_duplicateNickname() {
             // TODO: given-when-then
             SignupRequest signupRequest =
-                    new SignupRequest("KimMinsu", "test01@gmail.com", "password12", "test01");
+                    new SignupRequest("KimMinsu", "test01@gmail.com", "password12", "test01", PreferredLanguage.KO);
             when(userRepository.existsByEmail(signupRequest.email())).thenReturn(false);
             when(userRepository.existsByNickname(signupRequest.nickname())).thenReturn(true);
 
@@ -88,7 +89,7 @@ class AuthServiceTest {
         void signup_raceConditionOnSave() {
             // TODO: given-when-then
             SignupRequest signupRequest =
-                    new SignupRequest("KimMinsu", "test01@gmail.com", "password12", "test01");
+                    new SignupRequest("KimMinsu", "test01@gmail.com", "password12", "test01", PreferredLanguage.KO);
             when(userRepository.existsByEmail(signupRequest.email())).thenReturn(false);
             when(userRepository.existsByNickname(signupRequest.nickname())).thenReturn(false);
             when(userRepository.save(any(User.class))).thenThrow(new DataIntegrityViolationException("duplicate"));
@@ -102,12 +103,12 @@ class AuthServiceTest {
         void signup_success() {
             // TODO: given-when-then
             SignupRequest signupRequest =
-                    new SignupRequest("KimMinsu", "test01@gmail.com", "password12", "test01");
+                    new SignupRequest("KimMinsu", "test01@gmail.com", "password12", "test01", PreferredLanguage.KO);
             when(userRepository.existsByEmail(signupRequest.email())).thenReturn(false);
             when(userRepository.existsByNickname(signupRequest.nickname())).thenReturn(false);
             when(passwordEncoder.encode(signupRequest.password())).thenReturn("ENCODED");
 
-            User savedUser = new User("KimMinsu", "ENCODED", "test01@gmail.com", "test01", null);
+            User savedUser = new User("KimMinsu", "ENCODED", "test01@gmail.com", "test01", null, PreferredLanguage.KO);
             when(userRepository.save(any(User.class))).thenReturn(savedUser);
 
             UserResponse response = authService.signup(signupRequest);
@@ -138,7 +139,7 @@ class AuthServiceTest {
         void login_wrongPassword() {
             // TODO: given-when-then
             LoginRequest request = new LoginRequest("test01@gmail.com", "password01");
-            User user = new User("KimMinsu", "ENCODED_PASSWORD", "test01@gmail.com", "test01", null);
+            User user = new User("KimMinsu", "ENCODED_PASSWORD", "test01@gmail.com", "test01", null, PreferredLanguage.KO);
 
             when(userRepository.findByEmail(request.email())).thenReturn(Optional.of(user));
             when(passwordEncoder.matches(request.password(), user.getPassword())).thenReturn(false);
@@ -153,7 +154,7 @@ class AuthServiceTest {
         void login_success() {
             // TODO: given-when-then
             LoginRequest request = new LoginRequest("test01@gmail.com", "password01");
-            User user = new User("KimMinsu", "ENCODED_PASSWORD", "test01@gmail.com", "test01", null);
+            User user = new User("KimMinsu", "ENCODED_PASSWORD", "test01@gmail.com", "test01", null, PreferredLanguage.KO);
 
             when(userRepository.findByEmail(request.email())).thenReturn(Optional.of(user));
             when(passwordEncoder.matches(request.password(), user.getPassword())).thenReturn(true);

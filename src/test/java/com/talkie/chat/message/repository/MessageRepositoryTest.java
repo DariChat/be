@@ -5,6 +5,7 @@ import com.talkie.chat.room.entity.Room;
 import com.talkie.chat.room.enums.RoomType;
 import com.talkie.chat.room.repository.RoomRepository;
 import com.talkie.chat.user.entity.User;
+import com.talkie.chat.user.enums.PreferredLanguage;
 import com.talkie.chat.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -51,7 +52,7 @@ class MessageRepositoryTest {
     @BeforeEach
     void setUp() {
         room = roomRepository.save(new Room("test room", RoomType.GROUP));
-        user = userRepository.save(new User("Test", "password01", "test01@gmail.com", "Test01", null));
+        user = userRepository.save(new User("Test", "password01", "test01@gmail.com", "Test01", null, PreferredLanguage.KO));
     }
 
     // Message는 @CreatedDate라 저장 시점의 시간이 자동으로 찍힘.

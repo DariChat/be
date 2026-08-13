@@ -26,3 +26,7 @@ spring:
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS}
+
+deepl:
+  api-key: ${DEEPL_API_KEY}
+  base-url: https://api-free.deepl.com
