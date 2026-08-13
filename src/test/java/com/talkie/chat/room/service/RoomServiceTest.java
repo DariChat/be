@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
@@ -48,12 +49,14 @@ class RoomServiceTest {
     private UserRepository userRepository;
     @Mock
     private MessageRepository messageRepository;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     private RoomService roomService;
 
     @BeforeEach
     void setUp() {
-        roomService = new RoomService(roomRepository, roomMemberRepository, userRepository, messageRepository);
+        roomService = new RoomService(roomRepository, roomMemberRepository, userRepository, messageRepository, eventPublisher);
     }
 
     @Nested

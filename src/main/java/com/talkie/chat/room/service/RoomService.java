@@ -9,12 +9,15 @@ import com.talkie.chat.room.entity.Room;
 import com.talkie.chat.room.entity.RoomMember;
 import com.talkie.chat.room.enums.Role;
 import com.talkie.chat.room.enums.RoomType;
+import com.talkie.chat.room.event.RoomCreatedEvent;
+import com.talkie.chat.room.event.RoomUpdatedEvent;
 import com.talkie.chat.room.exception.RoomErrorCode;
 import com.talkie.chat.room.repository.RoomMemberRepository;
 import com.talkie.chat.room.repository.RoomRepository;
 import com.talkie.chat.user.entity.User;
 import com.talkie.chat.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +37,7 @@ public class RoomService {
     private final RoomMemberRepository roomMemberRepository;
     private final UserRepository userRepository;
     private final MessageRepository messageRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public RoomResponse createRoom(Long userId, String roomName, RoomType roomType, List<Long> memberIds) {
@@ -71,6 +75,7 @@ public class RoomService {
         roomMemberRepository.save(new RoomMember(Role.OWNER, user, createdRoom));
         roomMemberRepository.save(new RoomMember(Role.MEMBER, otherUser, createdRoom));
 
+        eventPublisher.publishEvent(new RoomCreatedEvent(Set.of(user.getId(), otherUserId), createdRoom.getId()));
         return RoomResponse.of(createdRoom, otherUser.getNickname(), 2, false);
     }
 
@@ -95,6 +100,11 @@ public class RoomService {
             roomMembers.add(new RoomMember(Role.MEMBER, member, createdRoom));
         }
         roomMemberRepository.saveAll(roomMembers);
+
+        Set<Long> allMemberIds = roomMembers.stream().map(rm -> rm.getUser().getId()).collect(Collectors.toSet());
+        allMemberIds.add(user.getId());
+        eventPublisher.publishEvent(new RoomCreatedEvent(allMemberIds, createdRoom.getId()));
+
         return RoomResponse.of(createdRoom, createdRoom.getRoomName(), roomMembers.size() + 1, false);
     }
 
@@ -147,6 +157,18 @@ public class RoomService {
         );
     }
 
+    public RoomSummaryResponse getRoomSummaryFor(Long userId, Long roomId) {
+        RoomMember myRoomMember = roomMemberRepository.findByUserIdAndRoomId(userId, roomId)
+                .orElseThrow(() -> new BusinessException(RoomErrorCode.NOT_ROOM_MEMBER));
+
+        long memberCount = roomMemberRepository.findByRoomId(roomId).size();
+        Map<Long, String> directRoomNameByRoomId = myRoomMember.getRoom().getRoomType() == RoomType.DIRECT
+                ? resolveDirectRoomNames(userId, List.of(myRoomMember))
+                : Map.of();
+
+        return toSummary(myRoomMember, memberCount, directRoomNameByRoomId);
+    }
+
     @Transactional
     public void markAsRead(Long userId, Long roomId) {
         if (!roomMemberRepository.existsByUserIdAndRoomId(userId, roomId)) {
@@ -171,15 +193,27 @@ public class RoomService {
         RoomMember roomMember = roomMemberRepository.findByUserIdAndRoomId(userId, room.getId())
                 .orElseThrow(() -> new BusinessException(RoomErrorCode.NOT_ROOM_MEMBER));
 
+        boolean roomDeleted = false;
         if (roomMember.getRole() == Role.OWNER) {
             Optional<RoomMember> nextOwner = roomMemberRepository.findOldestMemberByRoomId(roomId);
             if (nextOwner.isPresent()) {
                 nextOwner.get().changeRole(Role.OWNER);
             } else {
                 room.delete();
+                roomDeleted = true;
             }
         }
         roomMemberRepository.delete(roomMember);
+
+        if (!roomDeleted) {
+            Set<Long> remainingMemberIds = roomMemberRepository.findByRoomId(roomId).stream()
+                    .map(rm -> rm.getUser().getId())
+                    .filter(id -> !id.equals(userId))
+                    .collect(Collectors.toSet());
+            if (!remainingMemberIds.isEmpty()) {
+                eventPublisher.publishEvent(new RoomUpdatedEvent(remainingMemberIds, roomId));
+            }
+        }
     }
 
     private Room findByRoomId(Long roomId) {

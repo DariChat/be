@@ -1,8 +1,12 @@
 package com.talkie.chat.room.listener;
 
 import com.talkie.chat.message.event.MessageBroadcastedEvent;
+import com.talkie.chat.room.entity.RoomMember;
+import com.talkie.chat.room.event.RoomUpdatedEvent;
+import com.talkie.chat.room.repository.RoomMemberRepository;
 import com.talkie.chat.room.service.RoomService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
@@ -18,6 +22,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -26,6 +31,8 @@ public class RoomSubscriptionListener {
     private static final Pattern ROOM_DESTINATION_PATTERN = Pattern.compile("^/sub/rooms/(\\d+)$");
 
     private final RoomService roomService;
+    private final RoomMemberRepository roomMemberRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     private final Map<String, Map<String, Long>> sessionRoomSubscriptions = new ConcurrentHashMap<>();
 
@@ -105,6 +112,16 @@ public class RoomSubscriptionListener {
     public void handleMessageBroadcasted(MessageBroadcastedEvent event) {
         Set<Long> subscriberIds = getSubscriberIds(event.roomId());
         roomService.markAsRead(subscriberIds, event.roomId(), event.messageId());
+
+        Set<Long> notifyTargetIds = roomMemberRepository.findByRoomId(event.roomId()).stream()
+                .map(RoomMember::getUser)
+                .map(user -> user.getId())
+                .filter(id -> !id.equals(event.senderId()))
+                .filter(id -> !subscriberIds.contains(id))
+                .collect(Collectors.toSet());
+        if (!notifyTargetIds.isEmpty()) {
+            eventPublisher.publishEvent(new RoomUpdatedEvent(notifyTargetIds, event.roomId()));
+        }
     }
 
     public Set<Long> getSubscriberIds(Long roomId) {
