@@ -7,14 +7,16 @@ public record RoomResponse(
         Long roomId,
         String roomName,
         RoomType roomType,
-        int memberCount
+        int memberCount,
+        boolean alreadyExists
 ) {
-    public static RoomResponse from(Room room, int memberCount) {
+    public static RoomResponse of(Room room, String roomName, int memberCount, boolean alreadyExists) {
         return new RoomResponse(
                 room.getId(),
-                room.getRoomName(),
+                roomName,
                 room.getRoomType(),
-                memberCount
+                memberCount,
+                alreadyExists
         );
     }
 }
