@@ -1,6 +1,7 @@
 package com.talkie.chat.user.service;
 
 import com.talkie.chat.global.exception.BusinessException;
+import com.talkie.chat.user.dto.UserSearchResponse;
 import com.talkie.chat.user.entity.User;
 import com.talkie.chat.user.exception.UserErrorCode;
 import com.talkie.chat.user.repository.UserRepository;
@@ -37,6 +38,16 @@ public class UserService {
         String encodedPassword = passwordEncoder.encode(password);
         user.updatePassword(encodedPassword);
         return user;
+    }
+
+    public List<UserSearchResponse> searchUsers(Long requesterId, String keyword, String cursor, int size) {
+        if (keyword == null || keyword.isBlank()) {
+            throw new BusinessException(UserErrorCode.SEARCH_KEYWORD_REQUIRED);
+        }
+
+        return userRepository.searchByNickname(keyword, requesterId, cursor, size).stream()
+                .map(UserSearchResponse::from)
+                .toList();
     }
 
     private User findUser(Long id) {
