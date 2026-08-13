@@ -38,6 +38,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      DEEPL_API_KEY: ${DEEPL_API_KEY}
     expose:
       - "8080"
     restart: unless-stopped

@@ -1,5 +1,6 @@
 package com.talkie.chat.user.entity;
 
+import com.talkie.chat.user.enums.PreferredLanguage;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -30,22 +31,29 @@ public class User {
     private String profileImageUrl;
     private LocalDateTime lastActiveAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    private PreferredLanguage preferredLanguage;
+
     @CreatedDate
     private LocalDateTime createdAt;
 
     public User(String name, String password,
-                String email, String nickname, String profileImageUrl) {
+                String email, String nickname, String profileImageUrl,
+                PreferredLanguage preferredLanguage) {
         this.name = name;
         this.password = password;
         this.email = email;
         this.nickname = nickname;
         this.profileImageUrl = profileImageUrl;
+        this.preferredLanguage = preferredLanguage;
         this.lastActiveAt = LocalDateTime.now();
     }
 
-    public void updateProfile(String nickname, String profileImageUrl) {
+    public void updateProfile(String nickname, String profileImageUrl, PreferredLanguage preferredLanguage) {
         this.nickname = nickname;
         this.profileImageUrl = profileImageUrl;
+        this.preferredLanguage = preferredLanguage;
     }
 
     public void updatePassword(String password) {

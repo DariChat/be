@@ -1,7 +1,9 @@
 package com.talkie.chat.user.service;
 
 import com.talkie.chat.global.exception.BusinessException;
+import com.talkie.chat.user.dto.UserSearchResponse;
 import com.talkie.chat.user.entity.User;
+import com.talkie.chat.user.enums.PreferredLanguage;
 import com.talkie.chat.user.exception.UserErrorCode;
 import com.talkie.chat.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,9 +26,9 @@ public class UserService {
     }
 
     @Transactional
-    public User updateProfile(Long id, String nickname, String profileImageUrl) {
+    public User updateProfile(Long id, String nickname, String profileImageUrl, PreferredLanguage preferredLanguage) {
         User user = findUser(id);
-        user.updateProfile(nickname, profileImageUrl);
+        user.updateProfile(nickname, profileImageUrl, preferredLanguage);
         return user;
     }
 
@@ -37,6 +39,16 @@ public class UserService {
         String encodedPassword = passwordEncoder.encode(password);
         user.updatePassword(encodedPassword);
         return user;
+    }
+
+    public List<UserSearchResponse> searchUsers(Long requesterId, String keyword, String cursor, int size) {
+        if (keyword == null || keyword.isBlank()) {
+            throw new BusinessException(UserErrorCode.SEARCH_KEYWORD_REQUIRED);
+        }
+
+        return userRepository.searchByNickname(keyword, requesterId, cursor, size).stream()
+                .map(UserSearchResponse::from)
+                .toList();
     }
 
     private User findUser(Long id) {

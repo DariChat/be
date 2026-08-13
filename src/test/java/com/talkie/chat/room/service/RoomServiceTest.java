@@ -13,6 +13,7 @@ import com.talkie.chat.room.exception.RoomErrorCode;
 import com.talkie.chat.room.repository.RoomMemberRepository;
 import com.talkie.chat.room.repository.RoomRepository;
 import com.talkie.chat.user.entity.User;
+import com.talkie.chat.user.enums.PreferredLanguage;
 import com.talkie.chat.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -82,7 +83,7 @@ class RoomServiceTest {
             RoomType type = RoomType.GROUP;
             List<Long> memberIds = List.of(2L, 3L);
             User user =
-                    new User("Test", "password01", "test01@gmail.com", "Test01", null);
+                    new User("Test", "password01", "test01@gmail.com", "Test01", null, PreferredLanguage.KO);
 
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
 
@@ -100,9 +101,9 @@ class RoomServiceTest {
             RoomType type = RoomType.DIRECT;
             List<Long> memberIds = List.of(invitedId);
             User user =
-                    new User("Test", "password01", "test01@gmail.com", "Test01", null);
+                    new User("Test", "password01", "test01@gmail.com", "Test01", null, PreferredLanguage.KO);
             User invitee =
-                    new User("Kim", "pw", "invitee@gmail.com", "InviteeNick", null);
+                    new User("Kim", "pw", "invitee@gmail.com", "InviteeNick", null, PreferredLanguage.KO);
             ReflectionTestUtils.setField(invitee, "id", invitedId);
 
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
@@ -129,9 +130,9 @@ class RoomServiceTest {
             List<Long> memberIds = List.of(existingId, missingId);
 
             User user =
-                    new User("Test", "password01", "test01@gmail.com", "Test01", null);
+                    new User("Test", "password01", "test01@gmail.com", "Test01", null, PreferredLanguage.KO);
             User invitee =
-                    new User("Kim", "pw", "invitee@gmail.com", "InviteeNick", null);
+                    new User("Kim", "pw", "invitee@gmail.com", "InviteeNick", null, PreferredLanguage.KO);
             ReflectionTestUtils.setField(invitee, "id", existingId);
 
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
@@ -154,9 +155,9 @@ class RoomServiceTest {
             List<Long> memberIds = List.of(userId, existingId);
 
             User user =
-                    new User("Test", "password01", "test01@gmail.com", "Test01", null);
+                    new User("Test", "password01", "test01@gmail.com", "Test01", null, PreferredLanguage.KO);
             User invitee =
-                    new User("Kim", "pw", "invitee@gmail.com", "InviteeNick", null);
+                    new User("Kim", "pw", "invitee@gmail.com", "InviteeNick", null, PreferredLanguage.KO);
             ReflectionTestUtils.setField(user, "id", userId);
             ReflectionTestUtils.setField(invitee, "id", existingId);
 
@@ -180,9 +181,9 @@ class RoomServiceTest {
             List<Long> memberIds = List.of(existingId, existingId);
 
             User user =
-                    new User("Test", "password01", "test01@gmail.com", "Test01", null);
+                    new User("Test", "password01", "test01@gmail.com", "Test01", null, PreferredLanguage.KO);
             User invitee =
-                    new User("Kim", "pw", "invitee@gmail.com", "InviteeNick", null);
+                    new User("Kim", "pw", "invitee@gmail.com", "InviteeNick", null, PreferredLanguage.KO);
             ReflectionTestUtils.setField(user, "id", userId);
             ReflectionTestUtils.setField(invitee, "id", existingId);
 
@@ -225,7 +226,7 @@ class RoomServiceTest {
             ReflectionTestUtils.setField(room, "id", roomId);
 
             // 2. RoomMember 준비 (roomMemberRepository.findByUserId가 반환할 값)
-            User user = new User("Test", "password01", "test01@gmail.com", "Test01", null);
+            User user = new User("Test", "password01", "test01@gmail.com", "Test01", null, PreferredLanguage.KO);
             RoomMember myRoomMember = new RoomMember(Role.MEMBER, user, room);
             ReflectionTestUtils.setField(myRoomMember, "lastReadMessageId", lastReadMessageId);
 
@@ -299,7 +300,7 @@ class RoomServiceTest {
             Long roomId = 10L;
             Room room = new Room("test room", RoomType.GROUP);
             ReflectionTestUtils.setField(room, "id", roomId);
-            User user = new User("Test", "password01", "test01@gmail.com", "Test01", null);
+            User user = new User("Test", "password01", "test01@gmail.com", "Test01", null, PreferredLanguage.KO);
             RoomMember roomMember = new RoomMember(Role.MEMBER, user, room);
 
             // TODO: mock 세팅
@@ -321,9 +322,9 @@ class RoomServiceTest {
             Long roomId = 10L;
             Room room = new Room("test room", RoomType.GROUP);
             ReflectionTestUtils.setField(room, "id", roomId);
-            User owner = new User("Test", "password01", "test01@gmail.com", "Test01", null);
+            User owner = new User("Test", "password01", "test01@gmail.com", "Test01", null, PreferredLanguage.KO);
             RoomMember ownerMember = new RoomMember(Role.OWNER, owner, room);
-            User nextOwnerUser = new User("Kim", "pw", "invitee@gmail.com", "InviteeNick", null);
+            User nextOwnerUser = new User("Kim", "pw", "invitee@gmail.com", "InviteeNick", null, PreferredLanguage.KO);
             RoomMember nextOwnerMember = new RoomMember(Role.MEMBER, nextOwnerUser, room);
 
             // TODO: mock 세팅
@@ -349,7 +350,7 @@ class RoomServiceTest {
             Long roomId = 10L;
             Room room = new Room("test room", RoomType.GROUP);
             ReflectionTestUtils.setField(room, "id", roomId);
-            User owner = new User("Test", "password01", "test01@gmail.com", "Test01", null);
+            User owner = new User("Test", "password01", "test01@gmail.com", "Test01", null, PreferredLanguage.KO);
             RoomMember ownerMember = new RoomMember(Role.OWNER, owner, room);
 
             // TODO: mock 세팅
