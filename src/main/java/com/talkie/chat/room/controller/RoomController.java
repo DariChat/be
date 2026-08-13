@@ -27,8 +27,10 @@ public class RoomController {
 
     private final RoomService roomService;
 
-    @Operation(summary = "채팅방 생성", description = "roomType이 DIRECT면 roomName 생략 시 상대방 닉네임으로 자동 설정된다.")
+    @Operation(summary = "채팅방 생성", description = "roomType이 DIRECT면 방 이름은 항상 상대방 닉네임으로 내려간다. " +
+            "이미 두 유저 사이에 DIRECT 방이 있으면 새로 만들지 않고 기존 방을 200으로 반환한다.")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "생성 성공")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "이미 존재하는 DIRECT 방 반환")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "초대 대상이 비어있거나 GROUP인데 roomName이 없음",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 초대 대상 포함",
@@ -36,7 +38,8 @@ public class RoomController {
     @PostMapping
     public ResponseEntity<ApiResponse<RoomResponse>> createRoom(@AuthenticationPrincipal Long userId, @Valid @RequestBody RoomCreateRequest request) {
         RoomResponse roomResponse = roomService.createRoom(userId, request.roomName(), request.roomType(), request.memberIds());
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(roomResponse));
+        HttpStatus status = roomResponse.alreadyExists() ? HttpStatus.OK : HttpStatus.CREATED;
+        return ResponseEntity.status(status).body(ApiResponse.ok(roomResponse));
     }
 
     @Operation(summary = "내 채팅방 목록 조회", description = "마지막 메시지, 안읽은 메시지 수를 함께 반환한다.")
