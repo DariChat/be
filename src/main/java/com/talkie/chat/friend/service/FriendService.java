@@ -4,12 +4,15 @@ import com.talkie.chat.friend.dto.FriendRequestResponse;
 import com.talkie.chat.friend.dto.FriendResponse;
 import com.talkie.chat.friend.entity.Friendship;
 import com.talkie.chat.friend.enums.FriendshipStatus;
+import com.talkie.chat.friend.event.FriendRequestAcceptedEvent;
+import com.talkie.chat.friend.event.FriendRequestReceivedEvent;
 import com.talkie.chat.friend.exception.FriendErrorCode;
 import com.talkie.chat.friend.repository.FriendshipRepository;
 import com.talkie.chat.global.exception.BusinessException;
 import com.talkie.chat.user.entity.User;
 import com.talkie.chat.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +25,7 @@ public class FriendService {
 
     private final FriendshipRepository friendshipRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public FriendRequestResponse sendRequest(Long requesterId, Long addresseeId) {
@@ -37,7 +41,10 @@ public class FriendService {
         }
 
         Friendship friendship = new Friendship(requester, addressee);
-        return FriendRequestResponse.from(friendshipRepository.save(friendship));
+        FriendRequestResponse response = FriendRequestResponse.from(friendshipRepository.save(friendship));
+
+        eventPublisher.publishEvent(new FriendRequestReceivedEvent(addresseeId, response));
+        return response;
     }
 
     @Transactional
@@ -53,8 +60,11 @@ public class FriendService {
 
         friendship.accept();
 
-        friendshipRepository.findByRequesterIdAndAddresseeId(addresseeId, friendship.getRequester().getId())
+        Long requesterId = friendship.getRequester().getId();
+        friendshipRepository.findByRequesterIdAndAddresseeId(addresseeId, requesterId)
                 .ifPresent(friendshipRepository::delete);
+
+        eventPublisher.publishEvent(new FriendRequestAcceptedEvent(requesterId, FriendResponse.from(friendship.getAddressee())));
     }
 
     @Transactional
