@@ -41,7 +41,8 @@ public class AuthService {
                     passwordEncoder.encode(request.password()),
                     request.email(),
                     request.nickname(),
-                    null);
+                    null,
+                    request.preferredLanguage());
             return UserResponse.from(userRepository.save(user));
         } catch (DataIntegrityViolationException e) {
             throw new BusinessException(AuthErrorCode.DUPLICATE_EMAIL_OR_NICKNAME, e);

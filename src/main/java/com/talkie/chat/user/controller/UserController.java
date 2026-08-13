@@ -53,7 +53,7 @@ public class UserController {
             @AuthenticationPrincipal Long id, @Valid @RequestBody UserUpdateRequest request) {
 
         User user = userService.updateProfile(
-                id, request.nickname(), request.profileImageUrl()
+                id, request.nickname(), request.profileImageUrl(), request.preferredLanguage()
         );
 
         return ResponseEntity.ok(ApiResponse.ok(UserResponse.from(user)));

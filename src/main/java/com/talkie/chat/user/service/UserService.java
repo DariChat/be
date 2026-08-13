@@ -3,6 +3,7 @@ package com.talkie.chat.user.service;
 import com.talkie.chat.global.exception.BusinessException;
 import com.talkie.chat.user.dto.UserSearchResponse;
 import com.talkie.chat.user.entity.User;
+import com.talkie.chat.user.enums.PreferredLanguage;
 import com.talkie.chat.user.exception.UserErrorCode;
 import com.talkie.chat.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,9 +26,9 @@ public class UserService {
     }
 
     @Transactional
-    public User updateProfile(Long id, String nickname, String profileImageUrl) {
+    public User updateProfile(Long id, String nickname, String profileImageUrl, PreferredLanguage preferredLanguage) {
         User user = findUser(id);
-        user.updateProfile(nickname, profileImageUrl);
+        user.updateProfile(nickname, profileImageUrl, preferredLanguage);
         return user;
     }
 
