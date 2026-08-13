@@ -18,6 +18,9 @@ public interface RoomMemberRepository extends JpaRepository<RoomMember, Long> {
     @Query("SELECT rm FROM RoomMember rm JOIN FETCH rm.user WHERE rm.room.id = :roomId")
     List<RoomMember> findByRoomId(@Param("roomId") Long roomId);
 
+    @Query("SELECT rm FROM RoomMember rm JOIN FETCH rm.user WHERE rm.room.id IN :roomIds")
+    List<RoomMember> findByRoomIdIn(@Param("roomIds") Collection<Long> roomIds);
+
     @Query("SELECT rm.room.id, COUNT(rm) FROM RoomMember rm WHERE rm.room.id IN :roomIds GROUP BY rm.room.id")
     List<Object[]> countMembersByRoomIdIn(@Param("roomIds") Collection<Long> roomIds);
 
@@ -29,6 +32,11 @@ public interface RoomMemberRepository extends JpaRepository<RoomMember, Long> {
 
     @Query("SELECT rm FROM RoomMember rm WHERE rm.room.id = :roomId AND rm.role = 'MEMBER' ORDER BY rm.joinedAt ASC LIMIT 1")
     Optional<RoomMember> findOldestMemberByRoomId(@Param("roomId") Long roomId);
+
+    @Query("SELECT rm1.room.id FROM RoomMember rm1 JOIN RoomMember rm2 ON rm1.room.id = rm2.room.id " +
+            "WHERE rm1.room.roomType = 'DIRECT' AND rm1.user.id = :userId AND rm2.user.id = :otherUserId " +
+            "AND rm1.room.deletedAt IS NULL")
+    Optional<Long> findDirectRoomIdBetween(@Param("userId") Long userId, @Param("otherUserId") Long otherUserId);
 
     @Modifying(clearAutomatically = true)
     @Query("UPDATE RoomMember rm SET rm.lastReadMessageId = :messageId " +
