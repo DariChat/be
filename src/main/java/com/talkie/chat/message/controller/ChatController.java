@@ -48,7 +48,7 @@ public class ChatController {
         }
 
         messageService.markPublished(messageResponse.id());
-        eventPublisher.publishEvent(new MessageBroadcastedEvent(roomId, messageResponse.id()));
+        eventPublisher.publishEvent(new MessageBroadcastedEvent(roomId, messageResponse.id(), userId));
     }
 
     @MessageExceptionHandler(BusinessException.class)
