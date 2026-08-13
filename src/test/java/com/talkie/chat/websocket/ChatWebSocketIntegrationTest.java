@@ -13,6 +13,7 @@ import com.talkie.chat.room.dto.RoomResponse;
 import com.talkie.chat.room.enums.RoomType;
 import com.talkie.chat.room.service.RoomService;
 import com.talkie.chat.user.dto.UserResponse;
+import com.talkie.chat.user.enums.PreferredLanguage;
 import com.talkie.chat.user.repository.UserRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -78,11 +79,11 @@ class ChatWebSocketIntegrationTest {
 
         String suffix = java.util.UUID.randomUUID().toString().substring(0, 8);
 
-        authService.signup(new SignupRequest("Test", "test01-" + suffix + "@gmail.com", "password01", "Test01-" + suffix));
+        authService.signup(new SignupRequest("Test", "test01-" + suffix + "@gmail.com", "password01", "Test01-" + suffix, PreferredLanguage.KO));
         accessToken = authService.login(new LoginRequest("test01-" + suffix + "@gmail.com", "password01")).accessToken();
         userId = jwtProvider.extractUserId(accessToken);
 
-        authService.signup(new SignupRequest("Kim", "test02-" + suffix + "@gmail.com", "password01", "Test02-" + suffix));
+        authService.signup(new SignupRequest("Kim", "test02-" + suffix + "@gmail.com", "password01", "Test02-" + suffix, PreferredLanguage.KO));
         accessToken2 = authService.login(new LoginRequest("test02-" + suffix + "@gmail.com", "password01")).accessToken();
         userId2 = jwtProvider.extractUserId(accessToken2);
 
@@ -233,7 +234,7 @@ class ChatWebSocketIntegrationTest {
             // - 방에 속하지 않은 새 유저를 signup+login으로 만들고 그 토큰으로 connect
             // - session.subscribe("/user/queue/errors", errorHandler)
             String suffix = java.util.UUID.randomUUID().toString().substring(0, 8);
-            authService.signup(new SignupRequest("Outsider", "outsider-" + suffix + "@gmail.com", "password01", "Out-" + suffix));
+            authService.signup(new SignupRequest("Outsider", "outsider-" + suffix + "@gmail.com", "password01", "Out-" + suffix, PreferredLanguage.KO));
             String outsiderToken = authService.login(new LoginRequest("outsider-" + suffix + "@gmail.com", "password01")).accessToken();
 
             StompSession session = connect(outsiderToken);
