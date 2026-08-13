@@ -48,14 +48,34 @@ public class RoomService {
             if (roomName == null || roomName.isBlank()) {
                 throw new BusinessException(RoomErrorCode.ROOM_NAME_REQUIRED);
             }
-        } else {
-            if (roomName == null) {
-                User inviteUser = userRepository.findById(memberIds.get(0))
-                        .orElseThrow(() -> new BusinessException(RoomErrorCode.USER_NOT_FOUND));
-                roomName = inviteUser.getNickname();
-            }
+            return createGroupRoom(user, roomName, memberIds);
         }
-        Room room = new Room(roomName, roomType);
+        return findOrCreateDirectRoom(user, memberIds.get(0));
+    }
+
+    private RoomResponse findOrCreateDirectRoom(User user, Long otherUserId) {
+        Optional<Long> existingRoomId = roomMemberRepository.findDirectRoomIdBetween(user.getId(), otherUserId);
+        if (existingRoomId.isPresent()) {
+            Room existingRoom = findByRoomId(existingRoomId.get());
+            User otherUser = userRepository.findById(otherUserId)
+                    .orElseThrow(() -> new BusinessException(RoomErrorCode.USER_NOT_FOUND));
+            return RoomResponse.of(existingRoom, otherUser.getNickname(), 2, true);
+        }
+
+        User otherUser = userRepository.findById(otherUserId)
+                .orElseThrow(() -> new BusinessException(RoomErrorCode.USER_NOT_FOUND));
+
+        Room room = new Room(null, RoomType.DIRECT);
+        Room createdRoom = roomRepository.save(room);
+
+        roomMemberRepository.save(new RoomMember(Role.OWNER, user, createdRoom));
+        roomMemberRepository.save(new RoomMember(Role.MEMBER, otherUser, createdRoom));
+
+        return RoomResponse.of(createdRoom, otherUser.getNickname(), 2, false);
+    }
+
+    private RoomResponse createGroupRoom(User user, String roomName, List<Long> memberIds) {
+        Room room = new Room(roomName, RoomType.GROUP);
         Room createdRoom = roomRepository.save(room);
 
         RoomMember roomOwner = new RoomMember(Role.OWNER, user, createdRoom);
@@ -69,13 +89,13 @@ public class RoomService {
 
         List<RoomMember> roomMembers = new ArrayList<>();
         for(User member : members) {
-            if (member.getId().equals(userId)) {
+            if (member.getId().equals(user.getId())) {
                 continue;
             }
             roomMembers.add(new RoomMember(Role.MEMBER, member, createdRoom));
         }
         roomMemberRepository.saveAll(roomMembers);
-        return RoomResponse.from(createdRoom, roomMembers.size() + 1);
+        return RoomResponse.of(createdRoom, createdRoom.getRoomName(), roomMembers.size() + 1, false);
     }
 
     public List<RoomSummaryResponse> getMyRooms(Long userId) {
@@ -87,20 +107,39 @@ public class RoomService {
         List<Long> roomIds = myRoomMembers.stream().map(rm -> rm.getRoom().getId()).toList();
         Map<Long, Long> memberCountByRoomId = roomMemberRepository.countMembersByRoomIdIn(roomIds).stream()
                 .collect(Collectors.toMap(row -> (Long) row[0], row -> (Long) row[1]));
+        Map<Long, String> directRoomNameByRoomId = resolveDirectRoomNames(userId, myRoomMembers);
 
         return myRoomMembers.stream()
-                .map(rm -> toSummary(rm, memberCountByRoomId.getOrDefault(rm.getRoom().getId(), 0L)))
+                .map(rm -> toSummary(rm, memberCountByRoomId.getOrDefault(rm.getRoom().getId(), 0L), directRoomNameByRoomId))
                 .toList();
     }
 
-    private RoomSummaryResponse toSummary(RoomMember myRoomMember, long memberCount) {
+    private Map<Long, String> resolveDirectRoomNames(Long userId, List<RoomMember> myRoomMembers) {
+        List<Long> directRoomIds = myRoomMembers.stream()
+                .filter(rm -> rm.getRoom().getRoomType() == RoomType.DIRECT)
+                .map(rm -> rm.getRoom().getId())
+                .toList();
+        if (directRoomIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return roomMemberRepository.findByRoomIdIn(directRoomIds).stream()
+                .filter(rm -> !rm.getUser().getId().equals(userId))
+                .collect(Collectors.toMap(rm -> rm.getRoom().getId(), rm -> rm.getUser().getNickname(), (a, b) -> a));
+    }
+
+    private RoomSummaryResponse toSummary(RoomMember myRoomMember, long memberCount, Map<Long, String> directRoomNameByRoomId) {
         Long roomId = myRoomMember.getRoom().getId();
         Optional<Message> lastMessage = messageRepository.findFirstMessages(roomId, 1).stream().findFirst();
         long unreadCount = messageRepository.countUnread(roomId, myRoomMember.getLastReadMessageId());
 
+        String roomName = myRoomMember.getRoom().getRoomType() == RoomType.DIRECT
+                ? directRoomNameByRoomId.get(roomId)
+                : myRoomMember.getRoom().getRoomName();
+
         return new RoomSummaryResponse(
                 roomId,
-                myRoomMember.getRoom().getRoomName(),
+                roomName,
                 lastMessage.map(Message::getContent).orElse(null),
                 lastMessage.map(Message::getCreatedAt).orElse(null),
                 (int) memberCount,

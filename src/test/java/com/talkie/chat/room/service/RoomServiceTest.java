@@ -92,9 +92,8 @@ class RoomServiceTest {
         }
 
         @Test
-        @DisplayName("DIRECT 타입이고 roomName이 없으면 초대 대상의 닉네임으로 자동 설정된다")
+        @DisplayName("DIRECT 타입이면 방 이름은 항상 상대방 닉네임으로 내려간다")
         void createRoom_directAutoName() {
-            // TODO: given-when-then
             Long userId = 1L;
             Long invitedId = 2L;
             String roomName = null;
@@ -104,17 +103,49 @@ class RoomServiceTest {
                     new User("Test", "password01", "test01@gmail.com", "Test01", null, PreferredLanguage.KO);
             User invitee =
                     new User("Kim", "pw", "invitee@gmail.com", "InviteeNick", null, PreferredLanguage.KO);
+            ReflectionTestUtils.setField(user, "id", userId);
             ReflectionTestUtils.setField(invitee, "id", invitedId);
 
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
             when(userRepository.findById(invitedId)).thenReturn(Optional.of(invitee));
-            when(userRepository.findAllById(List.of(invitedId))).thenReturn(List.of(invitee));
+            when(roomMemberRepository.findDirectRoomIdBetween(userId, invitedId)).thenReturn(Optional.empty());
             when(roomRepository.save(any(Room.class)))
                     .thenAnswer(invocation -> invocation.getArgument(0));
 
             RoomResponse response = roomService.createRoom(userId, roomName, type, memberIds);
 
             assertThat(response.roomName()).isEqualTo(invitee.getNickname());
+            assertThat(response.alreadyExists()).isFalse();
+        }
+
+        @Test
+        @DisplayName("이미 두 유저 사이에 DIRECT 방이 있으면 새로 만들지 않고 기존 방을 반환한다")
+        void createRoom_directRoomAlreadyExists() {
+            Long userId = 1L;
+            Long invitedId = 2L;
+            Long existingRoomId = 99L;
+            RoomType type = RoomType.DIRECT;
+            List<Long> memberIds = List.of(invitedId);
+            User user =
+                    new User("Test", "password01", "test01@gmail.com", "Test01", null, PreferredLanguage.KO);
+            User invitee =
+                    new User("Kim", "pw", "invitee@gmail.com", "InviteeNick", null, PreferredLanguage.KO);
+            ReflectionTestUtils.setField(user, "id", userId);
+            ReflectionTestUtils.setField(invitee, "id", invitedId);
+            Room existingRoom = new Room(null, RoomType.DIRECT);
+            ReflectionTestUtils.setField(existingRoom, "id", existingRoomId);
+
+            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+            when(userRepository.findById(invitedId)).thenReturn(Optional.of(invitee));
+            when(roomMemberRepository.findDirectRoomIdBetween(userId, invitedId)).thenReturn(Optional.of(existingRoomId));
+            when(roomRepository.findById(existingRoomId)).thenReturn(Optional.of(existingRoom));
+
+            RoomResponse response = roomService.createRoom(userId, null, type, memberIds);
+
+            assertThat(response.roomId()).isEqualTo(existingRoomId);
+            assertThat(response.roomName()).isEqualTo(invitee.getNickname());
+            assertThat(response.alreadyExists()).isTrue();
+            verify(roomRepository, never()).save(any());
         }
 
         @Test
