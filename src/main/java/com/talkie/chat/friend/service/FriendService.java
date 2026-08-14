@@ -88,10 +88,12 @@ public class FriendService {
 
     public List<FriendResponse> getFriends(Long userId) {
         return friendshipRepository.findAcceptedByUserId(userId).stream()
-                .map(friendship -> friendship.getRequester().getId().equals(userId)
-                        ? friendship.getAddressee()
-                        : friendship.getRequester())
-                .map(FriendResponse::from)
+                .map(friendship -> {
+                    User friend = friendship.getRequester().getId().equals(userId)
+                            ? friendship.getAddressee()
+                            : friendship.getRequester();
+                    return FriendResponse.of(friendship.getId(), friend);
+                })
                 .toList();
     }
 

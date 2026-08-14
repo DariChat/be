@@ -57,11 +57,13 @@ public class FriendController {
         return ResponseEntity.ok(ApiResponse.ok());
     }
 
-    @Operation(summary = "친구 요청 취소/거절", description = "요청을 보낸 사람이 호출하면 취소, 받은 사람이 호출하면 거절로 동작한다.")
+    @Operation(summary = "친구 요청 취소/거절 또는 친구 관계 삭제",
+            description = "PENDING 상태면 보낸 사람 호출 시 취소, 받은 사람 호출 시 거절로 동작한다. " +
+                    "ACCEPTED 상태(이미 친구)여도 당사자면 호출해 관계를 끊을 수 있다.")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "삭제 성공")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "요청 당사자가 아님",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
-    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 요청",
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 요청 또는 관계",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @DeleteMapping("/requests/{friendshipId}")
     public ResponseEntity<ApiResponse<Void>> removeRequest(
