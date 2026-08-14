@@ -2,6 +2,7 @@ package com.talkie.chat.user.controller;
 
 import com.talkie.chat.global.exception.ApiResponse;
 import com.talkie.chat.global.exception.ErrorResponse;
+import com.talkie.chat.user.dto.UserRecommendationResponse;
 import com.talkie.chat.user.dto.UserResponse;
 import com.talkie.chat.user.dto.PasswordUpdateRequest;
 import com.talkie.chat.user.dto.UserSearchResponse;
@@ -53,7 +54,7 @@ public class UserController {
             @AuthenticationPrincipal Long id, @Valid @RequestBody UserUpdateRequest request) {
 
         User user = userService.updateProfile(
-                id, request.nickname(), request.profileImageUrl(), request.preferredLanguage()
+                id, request.nickname(), request.profileImageUrl(), request.preferredLanguage(), request.bio()
         );
 
         return ResponseEntity.ok(ApiResponse.ok(UserResponse.from(user)));
@@ -87,6 +88,21 @@ public class UserController {
 
         List<UserSearchResponse> users = userService.searchUsers(userId, keyword, cursor, size);
         return ResponseEntity.ok(ApiResponse.ok(users));
+    }
+
+    @Operation(summary = "홈 추천 유저 목록", description = "나와 다른 언어를 사용하고, 친구 관계(요청 포함)가 없는 유저를 랜덤으로 추천한다. " +
+            "excludeIds에 이미 받은 유저 ID를 누적해서 넘기면 중복 없이 무한 스크롤을 이어갈 수 있다.")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공")
+    @GetMapping("/recommendations")
+    public ResponseEntity<ApiResponse<List<UserRecommendationResponse>>> getRecommendations(
+            @AuthenticationPrincipal Long userId,
+            @Parameter(description = "이미 받은 유저 ID 목록 (중복 제외용)")
+            @RequestParam(required = false) List<Long> excludeIds,
+            @Parameter(description = "페이지 크기 (1~50)")
+            @RequestParam(defaultValue = "20") @Min(1) @Max(50) int size) {
+
+        List<UserRecommendationResponse> recommendations = userService.getRecommendations(userId, excludeIds, size);
+        return ResponseEntity.ok(ApiResponse.ok(recommendations));
     }
 
 }
