@@ -39,6 +39,8 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
       DEEPL_API_KEY: ${DEEPL_API_KEY}
+      GMAIL_USERNAME: ${GMAIL_USERNAME}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
     expose:
       - "8080"
     restart: unless-stopped

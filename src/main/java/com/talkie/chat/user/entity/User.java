@@ -37,6 +37,9 @@ public class User {
     @Column(nullable = false, length = 10)
     private PreferredLanguage preferredLanguage;
 
+    @Column(nullable = false)
+    private boolean emailVerified;
+
     @CreatedDate
     private LocalDateTime createdAt;
 
@@ -50,6 +53,11 @@ public class User {
         this.profileImageUrl = profileImageUrl;
         this.preferredLanguage = preferredLanguage;
         this.lastActiveAt = LocalDateTime.now();
+        this.emailVerified = false;
+    }
+
+    public void verifyEmail() {
+        this.emailVerified = true;
     }
 
     public void updateProfile(String nickname, String profileImageUrl, PreferredLanguage preferredLanguage, String bio) {
