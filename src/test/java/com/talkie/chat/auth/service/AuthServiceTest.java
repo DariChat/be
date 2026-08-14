@@ -4,6 +4,7 @@ import com.talkie.chat.auth.dto.LoginRequest;
 import com.talkie.chat.auth.dto.SignupRequest;
 import com.talkie.chat.auth.dto.TokenResponse;
 import com.talkie.chat.auth.exception.AuthErrorCode;
+import com.talkie.chat.auth.repository.EmailVerificationRepository;
 import com.talkie.chat.auth.repository.RefreshTokenRepository;
 import com.talkie.chat.global.exception.BusinessException;
 import com.talkie.chat.global.jwt.JwtProvider;
@@ -43,6 +44,10 @@ class AuthServiceTest {
     @Mock
     private RefreshTokenRepository refreshTokenRepository;
     @Mock
+    private EmailVerificationRepository emailVerificationRepository;
+    @Mock
+    private EmailSender emailSender;
+    @Mock
     private PasswordEncoder passwordEncoder;
     @Mock
     private JwtProvider jwtProvider;
@@ -51,7 +56,8 @@ class AuthServiceTest {
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(userRepository, refreshTokenRepository, passwordEncoder, jwtProvider);
+        authService = new AuthService(userRepository, refreshTokenRepository, emailVerificationRepository,
+                emailSender, passwordEncoder, jwtProvider);
     }
 
     @Nested
@@ -150,11 +156,25 @@ class AuthServiceTest {
         }
 
         @Test
+        @DisplayName("이메일 인증 전이면 EMAIL_NOT_VERIFIED")
+        void login_emailNotVerified() {
+            LoginRequest request = new LoginRequest("test01@gmail.com", "password01");
+            User user = new User("KimMinsu", "ENCODED_PASSWORD", "test01@gmail.com", "test01", null, PreferredLanguage.KO);
+
+            when(userRepository.findByEmail(request.email())).thenReturn(Optional.of(user));
+            when(passwordEncoder.matches(request.password(), user.getPassword())).thenReturn(true);
+
+            BusinessException exception = assertThrows(BusinessException.class, () -> authService.login(request));
+            assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.EMAIL_NOT_VERIFIED);
+        }
+
+        @Test
         @DisplayName("정상 로그인 시 RefreshToken이 저장되고 lastActiveAt이 갱신된다")
         void login_success() {
             // TODO: given-when-then
             LoginRequest request = new LoginRequest("test01@gmail.com", "password01");
             User user = new User("KimMinsu", "ENCODED_PASSWORD", "test01@gmail.com", "test01", null, PreferredLanguage.KO);
+            user.verifyEmail();
 
             when(userRepository.findByEmail(request.email())).thenReturn(Optional.of(user));
             when(passwordEncoder.matches(request.password(), user.getPassword())).thenReturn(true);

@@ -1,8 +1,10 @@
 package com.talkie.chat.auth.controller;
 
 import com.talkie.chat.auth.dto.LoginRequest;
+import com.talkie.chat.auth.dto.ResendVerificationRequest;
 import com.talkie.chat.auth.dto.SignupRequest;
 import com.talkie.chat.auth.dto.TokenResponse;
+import com.talkie.chat.auth.dto.VerifyEmailRequest;
 import com.talkie.chat.auth.service.AuthService;
 import com.talkie.chat.auth.utils.CookieUtil;
 import com.talkie.chat.global.exception.ApiResponse;
@@ -29,7 +31,8 @@ public class AuthController {
 
     private final AuthService authService;
 
-    @Operation(summary = "회원가입", description = "이메일/닉네임 중복이 없으면 계정을 생성한다.")
+    @Operation(summary = "회원가입", description = "이메일/닉네임 중복이 없으면 계정을 생성하고 인증코드를 이메일로 발송한다. " +
+            "이메일 인증 전까지는 로그인할 수 없다.")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "회원가입 성공")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이메일 또는 닉네임 중복",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
@@ -40,9 +43,40 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.ok(signup));
     }
 
-    @Operation(summary = "로그인", description = "AccessToken은 응답 바디로, RefreshToken은 HttpOnly 쿠키로 내려준다.")
+    @Operation(summary = "이메일 인증", description = "회원가입 시 발송된 6자리 인증코드를 검증한다.")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "인증 성공")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "인증코드 불일치 또는 만료",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "가입되지 않은 이메일",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 인증된 이메일",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @SecurityRequirements
+    @PostMapping("/verify-email")
+    public ResponseEntity<ApiResponse<Void>> verifyEmail(@Valid @RequestBody VerifyEmailRequest request) {
+        authService.verifyEmail(request.email(), request.code());
+        return ResponseEntity.ok(ApiResponse.ok());
+    }
+
+    @Operation(summary = "인증코드 재발송", description = "인증코드가 만료됐거나 메일을 받지 못한 경우 재발송한다. 1분 간격 제한이 있다.")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "재발송 성공")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "가입되지 않은 이메일",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 인증된 이메일",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429", description = "재발송 간격 미충족",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @SecurityRequirements
+    @PostMapping("/resend-verification")
+    public ResponseEntity<ApiResponse<Void>> resendVerification(@Valid @RequestBody ResendVerificationRequest request) {
+        authService.resendVerification(request.email());
+        return ResponseEntity.ok(ApiResponse.ok());
+    }
+
+    @Operation(summary = "로그인", description = "AccessToken은 응답 바디로, RefreshToken은 HttpOnly 쿠키로 내려준다. " +
+            "이메일 미인증 상태면 401을 반환한다.")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "로그인 성공")
-    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "이메일 또는 비밀번호 불일치",
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "이메일/비밀번호 불일치 또는 이메일 미인증",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @SecurityRequirements
     @PostMapping("/login")
