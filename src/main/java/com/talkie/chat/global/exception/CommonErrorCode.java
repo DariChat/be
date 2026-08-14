@@ -14,7 +14,8 @@ public enum CommonErrorCode implements ErrorCode {
     TYPE_MISMATCH("COMMON_005", "파라미터 타입이 올바르지 않습니다.", HttpStatus.BAD_REQUEST),
     METHOD_NOT_ALLOWED("COMMON_006", "지원하지 않는 HTTP 메서드입니다.", HttpStatus.METHOD_NOT_ALLOWED),
     NOT_FOUND("COMMON_007", "요청한 리소스를 찾을 수 없습니다.", HttpStatus.NOT_FOUND),
-    UNSUPPORTED_MEDIA_TYPE("COMMON_008", "지원하지 않는 Content-Type입니다.", HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+    UNSUPPORTED_MEDIA_TYPE("COMMON_008", "지원하지 않는 Content-Type입니다.", HttpStatus.UNSUPPORTED_MEDIA_TYPE),
+    UNAUTHORIZED("COMMON_009", "인증이 필요합니다. 토큰이 없거나 만료되었습니다.", HttpStatus.UNAUTHORIZED);
 
     private final String code;
     private final String message;
