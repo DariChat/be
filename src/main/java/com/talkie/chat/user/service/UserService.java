@@ -1,6 +1,7 @@
 package com.talkie.chat.user.service;
 
 import com.talkie.chat.global.exception.BusinessException;
+import com.talkie.chat.user.dto.UserRecommendationResponse;
 import com.talkie.chat.user.dto.UserSearchResponse;
 import com.talkie.chat.user.entity.User;
 import com.talkie.chat.user.enums.PreferredLanguage;
@@ -26,9 +27,9 @@ public class UserService {
     }
 
     @Transactional
-    public User updateProfile(Long id, String nickname, String profileImageUrl, PreferredLanguage preferredLanguage) {
+    public User updateProfile(Long id, String nickname, String profileImageUrl, PreferredLanguage preferredLanguage, String bio) {
         User user = findUser(id);
-        user.updateProfile(nickname, profileImageUrl, preferredLanguage);
+        user.updateProfile(nickname, profileImageUrl, preferredLanguage, bio);
         return user;
     }
 
@@ -48,6 +49,19 @@ public class UserService {
 
         return userRepository.searchByNickname(keyword, requesterId, cursor, size).stream()
                 .map(UserSearchResponse::from)
+                .toList();
+    }
+
+    public List<UserRecommendationResponse> getRecommendations(Long userId, List<Long> excludeIds, int size) {
+        User user = findUser(userId);
+
+        List<Long> excludeIdsOrDefault = (excludeIds == null || excludeIds.isEmpty())
+                ? List.of(userId)
+                : excludeIds;
+
+        return userRepository.findRecommendations(userId, user.getPreferredLanguage().name(), excludeIdsOrDefault, size)
+                .stream()
+                .map(UserRecommendationResponse::from)
                 .toList();
     }
 
