@@ -23,6 +23,12 @@ spring:
     access-token-expiration: 3600000
     refresh-token-expiration: 604800000
 
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: test@example.com
+    password: test-app-password
+
 app:
   cors:
     allowed-origins: http://localhost:3000

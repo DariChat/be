@@ -40,6 +40,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/signup", "/api/auth/login",
                                 "/api/auth/reissue", "/api/auth/logout",
+                                "/api/auth/verify-email", "/api/auth/resend-verification",
                                 "/test.html", "/ws-talkie/**",
                                 "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**",
                                 "/actuator/**").permitAll()

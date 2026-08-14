@@ -13,6 +13,7 @@ import com.talkie.chat.room.dto.RoomResponse;
 import com.talkie.chat.room.enums.RoomType;
 import com.talkie.chat.room.service.RoomService;
 import com.talkie.chat.user.dto.UserResponse;
+import com.talkie.chat.user.entity.User;
 import com.talkie.chat.user.enums.PreferredLanguage;
 import com.talkie.chat.user.repository.UserRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -80,10 +81,12 @@ class ChatWebSocketIntegrationTest {
         String suffix = java.util.UUID.randomUUID().toString().substring(0, 8);
 
         authService.signup(new SignupRequest("Test", "test01-" + suffix + "@gmail.com", "password01", "Test01-" + suffix, PreferredLanguage.KO));
+        verifyEmail("test01-" + suffix + "@gmail.com");
         accessToken = authService.login(new LoginRequest("test01-" + suffix + "@gmail.com", "password01")).accessToken();
         userId = jwtProvider.extractUserId(accessToken);
 
         authService.signup(new SignupRequest("Kim", "test02-" + suffix + "@gmail.com", "password01", "Test02-" + suffix, PreferredLanguage.KO));
+        verifyEmail("test02-" + suffix + "@gmail.com");
         accessToken2 = authService.login(new LoginRequest("test02-" + suffix + "@gmail.com", "password01")).accessToken();
         userId2 = jwtProvider.extractUserId(accessToken2);
 
@@ -97,6 +100,12 @@ class ChatWebSocketIntegrationTest {
 
     private String wsUrl() {
         return "ws://localhost:" + port + "/ws-talkie";
+    }
+
+    private void verifyEmail(String email) {
+        User user = userRepository.findByEmail(email).orElseThrow();
+        user.verifyEmail();
+        userRepository.save(user);
     }
 
     /**
@@ -235,6 +244,7 @@ class ChatWebSocketIntegrationTest {
             // - session.subscribe("/user/queue/errors", errorHandler)
             String suffix = java.util.UUID.randomUUID().toString().substring(0, 8);
             authService.signup(new SignupRequest("Outsider", "outsider-" + suffix + "@gmail.com", "password01", "Out-" + suffix, PreferredLanguage.KO));
+            verifyEmail("outsider-" + suffix + "@gmail.com");
             String outsiderToken = authService.login(new LoginRequest("outsider-" + suffix + "@gmail.com", "password01")).accessToken();
 
             StompSession session = connect(outsiderToken);
