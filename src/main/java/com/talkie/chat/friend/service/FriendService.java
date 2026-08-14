@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -40,10 +41,25 @@ public class FriendService {
             throw new BusinessException(FriendErrorCode.FRIENDSHIP_ALREADY_EXISTS);
         }
 
+        Optional<Friendship> reverseRequest = friendshipRepository.findByRequesterIdAndAddresseeId(addresseeId, requesterId)
+                .filter(f -> f.getStatus() == FriendshipStatus.PENDING);
+        if (reverseRequest.isPresent()) {
+            return acceptReverseRequest(reverseRequest.get());
+        }
+
         Friendship friendship = new Friendship(requester, addressee);
         FriendRequestResponse response = FriendRequestResponse.from(friendshipRepository.save(friendship));
 
         eventPublisher.publishEvent(new FriendRequestReceivedEvent(addresseeId, response));
+        return response;
+    }
+
+    private FriendRequestResponse acceptReverseRequest(Friendship reverseRequest) {
+        reverseRequest.accept();
+        FriendRequestResponse response = FriendRequestResponse.from(reverseRequest);
+
+        eventPublisher.publishEvent(new FriendRequestAcceptedEvent(
+                reverseRequest.getRequester().getId(), FriendResponse.from(reverseRequest.getAddressee())));
         return response;
     }
 
