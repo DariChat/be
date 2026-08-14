@@ -29,6 +29,8 @@ public class User {
     private String nickname;
     @Column(length = 500)
     private String profileImageUrl;
+    @Column(length = 200)
+    private String bio;
     private LocalDateTime lastActiveAt;
 
     @Enumerated(EnumType.STRING)
@@ -50,10 +52,11 @@ public class User {
         this.lastActiveAt = LocalDateTime.now();
     }
 
-    public void updateProfile(String nickname, String profileImageUrl, PreferredLanguage preferredLanguage) {
+    public void updateProfile(String nickname, String profileImageUrl, PreferredLanguage preferredLanguage, String bio) {
         this.nickname = nickname;
         this.profileImageUrl = profileImageUrl;
         this.preferredLanguage = preferredLanguage;
+        this.bio = bio;
     }
 
     public void updatePassword(String password) {
