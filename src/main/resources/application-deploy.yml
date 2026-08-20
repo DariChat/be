@@ -42,3 +42,7 @@ app:
 deepl:
   api-key: ${DEEPL_API_KEY}
   base-url: https://api-free.deepl.com
+
+moni:
+  api-key: c72da0ce84867ff0b668dcdfb977fe14bd1ba9f5558da7b3183d86b64cda4fcd           # 앱 등록 시 발급받은 apiKey 값 (한 번만 표시됨)
+  server-url: https://unstentorian-back-barbera.ngrok-free.dev   # API 서버(8080)를 ngrok으로 터널링한 주소
