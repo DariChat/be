@@ -57,7 +57,7 @@ dependencies {
 	// Swagger (OpenAPI)
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.0'
 
-	implementation 'com.github.SW-pilot-java3:moni-spring-boot-starter:0.1.0'
+	implementation 'com.github.SW-pilot-java3:moni-spring-boot-starter:0.1.1'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'io.micrometer:micrometer-core'
 }
