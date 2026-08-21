@@ -41,6 +41,9 @@ services:
       DEEPL_API_KEY: ${DEEPL_API_KEY}
       GMAIL_USERNAME: ${GMAIL_USERNAME}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
+      MONI_NODE_EXPORTER_URL: http://host.docker.internal:9100/metrics
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     expose:
       - "8080"
     restart: unless-stopped
