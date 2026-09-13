@@ -119,8 +119,14 @@ public class RoomService {
                 .collect(Collectors.toMap(row -> (Long) row[0], row -> (Long) row[1]));
         Map<Long, String> directRoomNameByRoomId = resolveDirectRoomNames(userId, myRoomMembers);
 
+        Map<Long, MessageRepository.LastMessageProjection> lastMessageByRoomId = messageRepository.findLastMessagesByRoomIdIn(roomIds).stream()
+                .collect(Collectors.toMap(MessageRepository.LastMessageProjection::getRoomId, p -> p));
+        Map<Long, Long> unreadCountByRoomId = messageRepository.countUnreadByRoomIdIn(userId, roomIds).stream()
+                .collect(Collectors.toMap(MessageRepository.UnreadCountProjection::getRoomId, MessageRepository.UnreadCountProjection::getUnreadCount));
+
         return myRoomMembers.stream()
-                .map(rm -> toSummary(rm, memberCountByRoomId.getOrDefault(rm.getRoom().getId(), 0L), directRoomNameByRoomId))
+                .map(rm -> toSummary(rm, memberCountByRoomId.getOrDefault(rm.getRoom().getId(), 0L),
+                        directRoomNameByRoomId, lastMessageByRoomId, unreadCountByRoomId))
                 .toList();
     }
 
@@ -138,7 +144,28 @@ public class RoomService {
                 .collect(Collectors.toMap(rm -> rm.getRoom().getId(), rm -> rm.getUser().getNickname(), (a, b) -> a));
     }
 
-    private RoomSummaryResponse toSummary(RoomMember myRoomMember, long memberCount, Map<Long, String> directRoomNameByRoomId) {
+    private RoomSummaryResponse toSummary(RoomMember myRoomMember, long memberCount, Map<Long, String> directRoomNameByRoomId,
+                                           Map<Long, MessageRepository.LastMessageProjection> lastMessageByRoomId,
+                                           Map<Long, Long> unreadCountByRoomId) {
+        Long roomId = myRoomMember.getRoom().getId();
+        MessageRepository.LastMessageProjection lastMessage = lastMessageByRoomId.get(roomId);
+        long unreadCount = unreadCountByRoomId.getOrDefault(roomId, 0L);
+
+        String roomName = myRoomMember.getRoom().getRoomType() == RoomType.DIRECT
+                ? directRoomNameByRoomId.get(roomId)
+                : myRoomMember.getRoom().getRoomName();
+
+        return new RoomSummaryResponse(
+                roomId,
+                roomName,
+                lastMessage != null ? lastMessage.getContent() : null,
+                lastMessage != null ? lastMessage.getCreatedAt() : null,
+                (int) memberCount,
+                (int) unreadCount
+        );
+    }
+
+    private RoomSummaryResponse toSummarySingle(RoomMember myRoomMember, long memberCount, Map<Long, String> directRoomNameByRoomId) {
         Long roomId = myRoomMember.getRoom().getId();
         Optional<Message> lastMessage = messageRepository.findFirstMessages(roomId, 1).stream().findFirst();
         long unreadCount = messageRepository.countUnread(roomId, myRoomMember.getLastReadMessageId());
@@ -166,7 +193,7 @@ public class RoomService {
                 ? resolveDirectRoomNames(userId, List.of(myRoomMember))
                 : Map.of();
 
-        return toSummary(myRoomMember, memberCount, directRoomNameByRoomId);
+        return toSummarySingle(myRoomMember, memberCount, directRoomNameByRoomId);
     }
 
     @Transactional

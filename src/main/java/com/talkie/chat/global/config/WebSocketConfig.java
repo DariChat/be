@@ -48,8 +48,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 log.warn("inbound 채널 큐 초과로 작업 폐기: active={}, queueSize={}",
                         executor.getActiveCount(), executor.getQueue().size()));
         registration.taskExecutor(inboundExecutor)
-                .corePoolSize(8)
-                .maxPoolSize(16)
+                .corePoolSize(16)
+                .maxPoolSize(32)
                 .queueCapacity(500);
     }
 
